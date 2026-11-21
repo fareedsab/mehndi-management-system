@@ -350,7 +350,7 @@ Ek order ka pura cycle chalaya aur har figure cross-check kiya:
 
 ### Live URL (abhi chal raha hai)
 ```
-https://exceptional-legitimate-suggestion-characterization.trycloudflare.com
+https://saw-professional-warren-reductions.trycloudflare.com
 ```
 - App: `/` · API: `/api/...`
 - **Yeh "quick tunnel" URL temporary hai** — process restart hone par naya random hostname milta hai. Permanent hostname ke liye neeche wala named-tunnel section dekhein.
@@ -411,3 +411,85 @@ DNS side: `route dns` record khud bana deta hai; agar aap khud lagana chahein to
 ### Android app ke liye
 Capacitor scaffold (task #11) ke baad `environment.production.ts` mein relative `/api` ko **poore `https://mehndi.<your-domain.com>/api`** se badal kar APK build karein — WebView mein relative URL kaam nahi karega.
 
+
+## 17. UAC — Users & Access Control (2026-11-21)
+
+Maqsad: **ek master account** jisko sab kuch, baaki accounts master khud banaye aur har module ke andar har action (view / create / update / delete + module ke andar ke extra rights) alag se de.
+
+### Data model (2 nayi tables, `sequelize.sync` se ban jati hain)
+| Table | Kaam |
+|---|---|
+| `user_module_access` | Ek row = (user, module) ke liye `canView / canCreate / canUpdate / canDelete` columns + `rights` JSON (module-specific extras). `(userId, module)` unique. |
+| `access_audit_logs` | Kisne kis account ka kya badla: `actorUserId, targetUserId, module, action, changes JSON, createdAt`. |
+
+`users.role` column ko haath nahi lagaya (SQLite + `sync({force:false})` existing table alter nahi karta) — is liye poori matrix nayi tables mein hai. `role='admin'` = master = har right, matrix ki zaroorat nahi.
+
+### Rights matrix
+Modules aur unke extras (source of truth: `backend/services/access.js`):
+
+| Module | view | create | update | delete | Extra rights |
+|---|---|---|---|---|---|
+| dashboard | ✔ | | | | |
+| raw-products | ✔ | ✔ | ✔ | | `stockIn`, `stockOut` |
+| finished-products | ✔ | ✔ | ✔ | ✔ | |
+| batches | ✔ | ✔ | ✔ | ✔ | |
+| vendors | ✔ | ✔ | ✔ | ✔ | `creditLimit` |
+| purchase-orders | ✔ | ✔ | ✔ | ✔ | `approve`, `cancel`, `receive`, `returnGoods` |
+| vendor-ledger | ✔ | | | | `payment`, `adjust` |
+| reports | ✔ | | | | |
+| users | ✔ | ✔ | ✔ | ✔ | |
+
+Role templates (ek click mein matrix): **Read only**, **Purchase / order entry**, **Store / production**, **Accounts / payments**, **Everything except user management**.
+
+Aap ki teeno conditions yahin cover hoti hain:
+- *sirf data dekh skta* → module pe sirf `view`.
+- *sirf write kraw hua data show/update na kr sakay* → `create` ON, `update`/`delete` OFF → user nayi entry bana sakta hai, edit/delete uske button pe nahi aayega aur API bhi 403 degi.
+- *sirf update krsakay, write na sakay* → `update` ON, `create` OFF.
+
+### Server-side enforcement
+- `backend/middleware/auth.js` ab **async** hai: JWT check ke baad `loadAccess(userId)` se grants DB se parh kar `req.access` pe lagata hai.
+- `requireAccess('module','action')` har business route pe laga hai — **37 routes** (raw-products, finished-products, batches, vendors, purchase-orders, reports) + poora `/api/users`.
+- Grant DB se per-request aata hai (15 second ka cache) → right lene/cheenne ka asar **logout ke bina** kuch seconds mein lag jata hai. JWT ka stale `role` claim ab decision nahi leta.
+- Do fields apne-aap se nahi chhoday ( paisay wale fields ):
+  - `POST /api/purchase-orders` body mein `confirm:true` **ya** `PATCH /:id/status {action:'confirm'}` → `purchase-orders.approve` zaroori. Warna sirf Draft banega.
+  - `PUT /api/vendors/:id` mein `creditLimit`/`paymentTermsDays` badalne ke liye `vendors.creditLimit` chahiye, aur har tabdeel `access_audit_logs` mein `credit-terms-changed` ke tor par likhi jati hai. `POST /api/vendors` par `creditLimit>0` → `vendors.creditLimit`, `openingBalance!=0` → `vendor-ledger.adjust`.
+- Self-service: `POST /api/auth/change-password` (current password verify karta hai, minimum 8 chars).
+- Lockout/race rokk: aapna **apna** role/permissions/password is screen se change nahi ho sakta (server block karta hai), aakhri master account delete/demote nahi ho sakta, aur jiske business records hain usay delete karne ke bajaye password reset karne ko kaha jata hai.
+
+### API
+| Method | Path | Right |
+|---|---|---|
+| POST | `/api/auth/login` | — (response mein ab `access` object bhi) |
+| GET | `/api/auth/me` | koi bhi signed-in (ab `access` ke sath) |
+| GET | `/api/auth/access` | koi bhi signed-in |
+| POST | `/api/auth/change-password` | koi bhi signed-in |
+| GET | `/api/users` | `users.view` |
+| GET | `/api/users/access-catalog` | `users.view` (matrix + templates UI ke liye) |
+| GET | `/api/users/audit` | `users.view` |
+| POST | `/api/users` | `users.create` |
+| PUT | `/api/users/:id/permissions` | `users.update` |
+| PUT | `/api/users/:id/role` | `users.update` |
+| POST | `/api/users/:id/password` | `users.update` |
+| DELETE | `/api/users/:id` | `users.delete` |
+
+### Frontend
+- `services/access.service.ts` — grants ka signal; `can(module, action)`, `canWrite(module, actions[])`; `localStorage.access` se foran hydrate hota hai (refresh pe bhi) aur login + `/api/auth/me` se update.
+- `services/permission.guard.ts` — route ke `data.module` ke against check; right na ho to dashboard, aur dashboard bhi na ho to `/account` pe bhej deta hai.
+- Sidebar (`layout.html`): har link `access.can(...)` pe gate; naya **Administration → Users & Access** aur sab ke liye **My Account**.
+- `components/users/` — Accounts list (rights ka human summary), **Add Account** (username/password/account type + matrix), **Edit Access** modal (module × action grid + role templates), Reset Password, Make/Demote Master, Delete, aur **Activity Log** tab.
+- `components/account/` — apna password change + apne rights ka summary.
+- Write buttons module-wise gate hotay hain: Raw Products (Add tab, In/Out/Edit — baaki "read only" label), Finished Products (Add tab, Edit), Batches (Produce tab, Edit/Delete), Vendors (Add tab, Pay/Adjust/Ledger/Edit/Delete, aur credit fields locked), Purchase Orders (New tab, Edit/Confirm/Receive/Return/Cancel/Delete, aur "Save & Confirm" button `approve` ke bagair ghayab).
+- UI gating sirf sahulat hai, security nahi — har cheez server dobara check karta hai.
+
+### Verification (2026-11-21, deployed app pe)
+20 API permission checks pass: `403 view on raw-products`, `403 delete on purchase-orders`, `403 payment on vendor-ledger`, `403 creditLimit on vendors`, `403 approve` (create-only user ka `confirm:true` reject), draft create `201`, `401` bagair token, aur 15s cache TTL ke baad new grant `200`.
+Browser (deployed URL pe, real login submit se):
+- admin → sidebar 10 links, Users & Access matrix sahi hydrate, "Access saved for uacprobe2" + row summary foran update.
+- restricted account (sirf raw-products view, batches view, vendors view, POs view+create) → login ke baad seedha `/account`, sidebar mein sirf 4 modules, PO rows pe sirf view button, Raw Products rows pe "read only", Vendors pe koi Add/Edit/Delete nahi.
+
+### Caveats (UAC ke baray mein honest limits)
+- **Row-level nahi, module-level hai**: `update` right wala banda doosre ke banaye hue records bhi edit kar sakta hai (owner-check nahi hai). Ownership chahiye to har route pe `createdBy` match lagana hoga.
+- Master account (`role='admin'`) matrix se upar hai — uske liye `user_module_access` rows store nahi hoti (permissions save karne ki koshish pe 400 milta hai).
+- Delete sirf un accounts ka hota hai jinka koi business record nahi; records wale ka password reset karke deactivate karein. Deleted user ka `createdBy` reference DB mein reh jata hai (SQLite FK `ON DELETE` cascade nahi rakhti) — is se historical reports nahi torti.
+- UI ki button-hiding stale grant ke sath 15 second tak dikhai de sakti hai; server phir bhi 403 dega.
+- Test data chhoda hua: **`uacprobe2` / `probe12345`** (standard account, rights: raw-products view, batches view, vendors view, POs view+create) aur uska ek Cancelled PO `PO-20261121-0005`. Yeh demo ke liye rakhya hai — delete karna ho to pehle uska PO clear karna hoga (Cancelled PO API se delete nahi hota, sirf Draft delete hota hai).

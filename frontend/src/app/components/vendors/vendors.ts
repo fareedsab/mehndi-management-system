@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { ApiService } from '../../services/api.service';
+import { AccessService } from '../../services/access.service';
 import { money, today } from '../../shared/money';
 
 const emptyVendorForm = () => ({
@@ -30,6 +31,7 @@ const emptyVendorForm = () => ({
 })
 export class VendorsComponent implements OnInit {
   private readonly apiService = inject(ApiService);
+  readonly access = inject(AccessService);
   private readonly router = inject(Router);
 
   readonly money = money;

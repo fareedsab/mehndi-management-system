@@ -3,6 +3,7 @@ const router = express.Router();
 const { Op } = require('sequelize');
 const db = require('../models');
 const auth = require('../middleware/auth');
+const { requireAccess, hasAccess } = require('../services/access');
 const ledger = require('../services/vendorLedger');
 
 // SQLite and MySQL LIKE already ignore case, Postgres LIKE does not — without
@@ -126,7 +127,7 @@ async function decorate(orders) {
 }
 
 // GET /api/purchase-orders - Purchase order register
-router.get('/', auth, async (req, res) => {
+router.get('/', auth, requireAccess('purchase-orders', 'view'), async (req, res) => {
   try {
     const { status, vendorId, startDate, endDate, search } = req.query;
 
@@ -160,7 +161,7 @@ router.get('/', auth, async (req, res) => {
 });
 
 // GET /api/purchase-orders/:id - Full order document
-router.get('/:id', auth, async (req, res) => {
+router.get('/:id', auth, requireAccess('purchase-orders', 'view'), async (req, res) => {
   try {
     const order = await db.PurchaseOrder.findByPk(req.params.id, {
       include: [
@@ -221,7 +222,7 @@ router.get('/:id', auth, async (req, res) => {
 });
 
 // POST /api/purchase-orders - Raise a purchase order against a vendor
-router.post('/', auth, async (req, res) => {
+router.post('/', auth, requireAccess('purchase-orders', 'create'), async (req, res) => {
   const transaction = await db.sequelize.transaction();
   try {
     const {
@@ -281,6 +282,17 @@ router.post('/', auth, async (req, res) => {
 
     const totals = computeTotals(cleanItems, discountAmount, taxPercent);
     const date = orderDate || ledger.todayDateOnly();
+
+    // Raising and confirming are separate rights: without 'approve' the order can
+    // only be saved as a Draft for someone else to confirm.
+    if (confirm && !hasAccess(req.access, 'purchase-orders', 'approve')) {
+      await transaction.rollback();
+      return res.status(403).json({
+        error: 'Not allowed: approve on purchase-orders. Nothing was saved.',
+        module: 'purchase-orders',
+        action: 'approve'
+      });
+    }
 
     if (confirm) {
       const current = await ledger.getVendorBalance(vendor, transaction);
@@ -342,7 +354,7 @@ router.post('/', auth, async (req, res) => {
 });
 
 // PUT /api/purchase-orders/:id - Edit a draft order (lines are replaced as a whole)
-router.put('/:id', auth, async (req, res) => {
+router.put('/:id', auth, requireAccess('purchase-orders', 'update'), async (req, res) => {
   const transaction = await db.sequelize.transaction();
   try {
     const order = await db.PurchaseOrder.findByPk(req.params.id, { transaction });
@@ -445,7 +457,7 @@ router.put('/:id', auth, async (req, res) => {
 });
 
 // PATCH /api/purchase-orders/:id/status - Confirm or cancel an order
-router.patch('/:id/status', auth, async (req, res) => {
+router.patch('/:id/status', auth, requireAccess('purchase-orders', 'update'), async (req, res) => {
   const transaction = await db.sequelize.transaction();
   try {
     const order = await db.PurchaseOrder.findByPk(req.params.id, {
@@ -458,6 +470,16 @@ router.patch('/:id/status', auth, async (req, res) => {
     }
 
     const { action, reason } = req.body;
+
+    const statusRight = action === 'confirm' ? 'approve' : action === 'cancel' ? 'cancel' : null;
+    if (statusRight && !hasAccess(req.access, 'purchase-orders', statusRight)) {
+      await transaction.rollback();
+      return res.status(403).json({
+        error: `Not allowed: ${statusRight} on purchase-orders. Ask an administrator for this right.`,
+        module: 'purchase-orders',
+        action: statusRight
+      });
+    }
 
     if (action === 'confirm') {
       if (order.status !== 'Draft') {
@@ -532,7 +554,7 @@ router.patch('/:id/status', auth, async (req, res) => {
 });
 
 // DELETE /api/purchase-orders/:id - Remove a draft order
-router.delete('/:id', auth, async (req, res) => {
+router.delete('/:id', auth, requireAccess('purchase-orders', 'delete'), async (req, res) => {
   try {
     const order = await db.PurchaseOrder.findByPk(req.params.id);
     if (!order) {
@@ -552,7 +574,7 @@ router.delete('/:id', auth, async (req, res) => {
 });
 
 // POST /api/purchase-orders/:id/receipts - Receive goods: raises stock and credits the vendor
-router.post('/:id/receipts', auth, async (req, res) => {
+router.post('/:id/receipts', auth, requireAccess('purchase-orders', 'receive'), async (req, res) => {
   const transaction = await db.sequelize.transaction();
   try {
     const order = await db.PurchaseOrder.findByPk(req.params.id, {
@@ -719,7 +741,7 @@ router.post('/:id/receipts', auth, async (req, res) => {
 });
 
 // POST /api/purchase-orders/:id/returns - Send goods back: lowers stock and debits the vendor
-router.post('/:id/returns', auth, async (req, res) => {
+router.post('/:id/returns', auth, requireAccess('purchase-orders', 'returnGoods'), async (req, res) => {
   const transaction = await db.sequelize.transaction();
   try {
     const order = await db.PurchaseOrder.findByPk(req.params.id, {

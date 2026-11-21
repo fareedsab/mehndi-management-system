@@ -9,3 +9,4 @@ frontend/android/app/build/
 frontend/android/.gradle/
 frontend/android/local.properties
 *.log
+

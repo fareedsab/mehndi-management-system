@@ -3,6 +3,7 @@ import { CommonModule, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { forkJoin } from 'rxjs';
 import { ApiService } from '../../services/api.service';
+import { AccessService } from '../../services/access.service';
 import { money, today } from '../../shared/money';
 
 interface OrderLine {
@@ -20,6 +21,7 @@ interface OrderLine {
 })
 export class PurchaseOrdersComponent implements OnInit {
   private readonly apiService = inject(ApiService);
+  readonly access = inject(AccessService);
 
   readonly money = money;
   readonly statusOptions = ['Draft', 'Ordered', 'Partially Received', 'Received', 'Cancelled'];

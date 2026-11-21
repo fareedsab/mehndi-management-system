@@ -4,14 +4,26 @@ const { Op } = require('sequelize');
 const db = require('../models');
 const auth = require('../middleware/auth');
 const ledger = require('../services/vendorLedger');
+const { requireAccess, hasAccess } = require('../services/access');
 
 // SQLite and MySQL LIKE already ignore case, Postgres LIKE does not — without
 // this a search box would silently return nothing for lowercase input.
 const containsOp = db.sequelize.getDialect() === 'postgres' ? Op.iLike : Op.like;
 
+// The dashboard renders vendor balances, so a user with dashboard access but no
+// Reports tab must still be able to load that one endpoint.
+const viewBalances = (req, res, next) => {
+  if (hasAccess(req.access, 'reports', 'view') || hasAccess(req.access, 'dashboard', 'view')) return next();
+  return res.status(403).json({
+    error: 'Not allowed: view on reports. Ask an administrator for this right.',
+    module: 'reports',
+    action: 'view'
+  });
+};
+
 // GET /api/reports/batch-production - Batch Production Report
 // Filters: startDate, endDate, finishedProductId, batchNumber
-router.get('/batch-production', auth, async (req, res) => {
+router.get('/batch-production', auth, requireAccess('reports', 'view'), async (req, res) => {
   try {
     const { startDate, endDate, finishedProductId, batchNumber } = req.query;
 
@@ -60,7 +72,7 @@ router.get('/batch-production', auth, async (req, res) => {
 
 // GET /api/reports/raw-consumption - Raw Material Consumption Report
 // Filters: startDate, endDate, rawProductId
-router.get('/raw-consumption', auth, async (req, res) => {
+router.get('/raw-consumption', auth, requireAccess('reports', 'view'), async (req, res) => {
   try {
     const { startDate, endDate, rawProductId } = req.query;
 
@@ -151,7 +163,7 @@ router.get('/raw-consumption', auth, async (req, res) => {
 
 // GET /api/reports/ledger/:productId - Inventory Ledger Report
 // Filters: startDate, endDate (Query params)
-router.get('/ledger/:productId', auth, async (req, res) => {
+router.get('/ledger/:productId', auth, requireAccess('reports', 'view'), async (req, res) => {
   try {
     const { productId } = req.params;
     const { startDate, endDate } = req.query;
@@ -198,7 +210,7 @@ const daysOverdue = (dueDate) => {
 };
 
 // GET /api/reports/purchase-orders - Purchase order register with summary totals
-router.get('/purchase-orders', auth, async (req, res) => {
+router.get('/purchase-orders', auth, requireAccess('reports', 'view'), async (req, res) => {
   try {
     const { startDate, endDate, vendorId, status, search } = req.query;
 
@@ -273,7 +285,7 @@ router.get('/purchase-orders', auth, async (req, res) => {
 });
 
 // GET /api/reports/vendor-balances - Payable position and credit ageing per vendor
-router.get('/vendor-balances', auth, async (req, res) => {
+router.get('/vendor-balances', auth, viewBalances, async (req, res) => {
   try {
     const vendors = await db.Vendor.findAll({ order: [['name', 'ASC']] });
     const { byOrder, openByVendor } = await ledger.getOrderPayables();
@@ -369,7 +381,7 @@ router.get('/vendor-balances', auth, async (req, res) => {
 });
 
 // GET /api/reports/purchase-summary - What was bought, from whom, at what average rate
-router.get('/purchase-summary', auth, async (req, res) => {
+router.get('/purchase-summary', auth, requireAccess('reports', 'view'), async (req, res) => {
   try {
     const { startDate, endDate, vendorId } = req.query;
 

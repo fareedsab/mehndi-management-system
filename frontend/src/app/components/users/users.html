@@ -1,0 +1,254 @@
+<!-- Shared matrix editor: used by the Add Account tab and the Edit Access modal -->
+<ng-template #matrixEditor>
+  <div class="preset-row" *ngIf="presets().length">
+    <span class="preset-label">Start from a role template:</span>
+    <button type="button" class="chip" *ngFor="let preset of presets()" (click)="applyPreset(preset.key)">
+      {{ preset.label }}
+    </button>
+  </div>
+
+  <div class="matrix-scroll">
+    <table class="matrix-table">
+      <thead>
+        <tr>
+          <th>Module</th>
+          <th class="check-head">View</th>
+          <th class="check-head">Create</th>
+          <th class="check-head">Update</th>
+          <th class="check-head">Delete</th>
+          <th>Extra rights inside the module</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let module of modules()">
+          <td class="module-cell">
+            <span class="module-name">{{ module.label }}</span>
+            <span class="sub-text">{{ module.key }}</span>
+          </td>
+          <td class="check-cell" *ngFor="let action of ['view', 'create', 'update', 'delete']">
+            <input type="checkbox"
+                   [checked]="value(module.key, action)"
+                   [disabled]="!module.actions.includes(action)"
+                   (change)="toggle(module.key, action, $any($event.target).checked)">
+          </td>
+          <td class="extras-cell">
+            <label class="extra" *ngFor="let extra of module.extras">
+              <input type="checkbox"
+                     [checked]="value(module.key, extra.key)"
+                     (change)="toggle(module.key, extra.key, $any($event.target).checked)">
+              <span>{{ extra.label }}</span>
+            </label>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="hint text-muted">
+    Ticking anything other than View also gives View. Unticking View clears the whole module.
+  </p>
+</ng-template>
+
+<div class="page-container">
+  <div class="page-header">
+    <div class="header-details">
+      <h2>Users &amp; Access</h2>
+      <p class="text-muted">Create accounts and choose exactly which modules — and which actions inside them — each one may use.</p>
+    </div>
+
+    <div class="tab-controls">
+      <button class="tab-btn" [class.active]="activeTab() === 'list'" (click)="selectTab('list')">
+        <span class="material-symbols-outlined">group</span>
+        <span>Accounts</span>
+      </button>
+      <button class="tab-btn" *ngIf="canCreate" [class.active]="activeTab() === 'add'" (click)="selectTab('add')">
+        <span class="material-symbols-outlined">person_add</span>
+        <span>Add Account</span>
+      </button>
+      <button class="tab-btn" [class.active]="activeTab() === 'log'" (click)="selectTab('log')">
+        <span class="material-symbols-outlined">history</span>
+        <span>Activity Log</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="alert alert-danger" *ngIf="error()">{{ error() }}</div>
+  <div class="alert alert-success" *ngIf="notice()">{{ notice() }}</div>
+
+  <div class="flex-center loading-state" *ngIf="isLoading()">
+    <span class="spinner"></span>
+    <span style="margin-left: 10px;">Loading accounts...</span>
+  </div>
+
+  <!-- TAB: ACCOUNTS -->
+  <div class="tab-pane glass-card" *ngIf="!isLoading() && activeTab() === 'list'">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>User</th>
+          <th>Type</th>
+          <th>Rights</th>
+          <th class="text-right">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let user of users()">
+          <td>
+            <div class="user-cell">
+              <span class="material-symbols-outlined">person</span>
+              <div>
+                <p class="font-bold">{{ user.username }}</p>
+                <p class="sub-text text-muted">Since {{ formatStamp(user.createdAt) }}</p>
+              </div>
+            </div>
+          </td>
+          <td>
+            <span class="badge" [class.badge-warning]="user.isAdmin" [class.badge-info]="!user.isAdmin">
+              {{ user.isAdmin ? 'Master' : 'Standard' }}
+            </span>
+          </td>
+          <td class="rights-cell">{{ rightsSummary(user) }}</td>
+          <td class="text-right">
+            <ng-container *ngIf="user.id !== access.access()?.userId; else selfNote">
+              <button class="btn btn-secondary btn-sm" *ngIf="canUpdate && !user.isAdmin" (click)="openAccess(user)">
+                <span class="material-symbols-outlined">admin_panel_settings</span>
+                <span>Edit Access</span>
+              </button>
+              <button class="btn btn-secondary btn-sm" *ngIf="canUpdate" (click)="openPasswordReset(user)">
+                <span class="material-symbols-outlined">password</span>
+                <span>Reset Password</span>
+              </button>
+              <button class="btn btn-secondary btn-sm" *ngIf="canUpdate"
+                      (click)="changeRole(user, user.isAdmin ? 'user' : 'admin')">
+                <span class="material-symbols-outlined">
+                  {{ user.isAdmin ? 'remove_moderator' : 'promote' }}
+                </span>
+                <span>{{ user.isAdmin ? 'Demote' : 'Make Master' }}</span>
+              </button>
+              <button class="btn btn-danger btn-sm" *ngIf="canDelete" (click)="remove(user)">
+                <span class="material-symbols-outlined">delete</span>
+              </button>
+            </ng-container>
+            <ng-template #selfNote>
+              <span class="sub-text text-muted">signed in now</span>
+            </ng-template>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- TAB: ADD ACCOUNT -->
+  <form class="tab-pane glass-card" *ngIf="!isLoading() && activeTab() === 'add'" (ngSubmit)="onCreateAccount()">
+    <div class="form-grid">
+      <label class="form-group">
+        <span>Username</span>
+        <input type="text" name="username" [(ngModel)]="newUser.username" autocomplete="off" required>
+      </label>
+      <label class="form-group">
+        <span>Initial password</span>
+        <input type="text" name="password" [(ngModel)]="newUser.password" autocomplete="off" required>
+        <small class="text-muted">Minimum 8 characters. Share it once, then let the user change it.</small>
+      </label>
+      <label class="form-group">
+        <span>Account type</span>
+        <select name="role" [(ngModel)]="newUser.role">
+          <option value="user">Standard — gets only the rights below</option>
+          <option value="admin">Master — every right, including this screen</option>
+        </select>
+      </label>
+    </div>
+
+    <ng-container *ngIf="newUser.role === 'user'">
+      <h3 class="section-title">Assign rights</h3>
+      <ng-container *ngTemplateOutlet="matrixEditor"></ng-container>
+    </ng-container>
+
+    <div class="form-actions">
+      <button class="btn btn-primary" type="submit" [disabled]="isSaving()">
+        <span class="material-symbols-outlined">person_add</span>
+        <span>{{ isSaving() ? 'Creating...' : 'Create Account' }}</span>
+      </button>
+    </div>
+  </form>
+
+  <!-- TAB: ACTIVITY LOG -->
+  <div class="tab-pane glass-card" *ngIf="!isLoading() && activeTab() === 'log'">
+    <div class="lines-header">
+      <h3>Access changes</h3>
+      <button class="btn btn-secondary" (click)="loadAudit()">
+        <span class="material-symbols-outlined">refresh</span>
+        <span>Refresh</span>
+      </button>
+    </div>
+    <p class="text-muted" *ngIf="!auditLog().length">Nothing recorded yet.</p>
+    <table class="data-table" *ngIf="auditLog().length">
+      <thead>
+        <tr>
+          <th>When</th>
+          <th>By</th>
+          <th>Account</th>
+          <th>Action</th>
+          <th>Detail</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let entry of auditLog()">
+          <td class="sub-text">{{ formatStamp(entry.createdAt) }}</td>
+          <td>{{ entry.actor?.username || 'system' }}</td>
+          <td>{{ entry.target?.username || (changesText(entry) ? '' : '-') }}</td>
+          <td>
+            <span class="badge badge-draft">{{ entry.action }}</span>
+          </td>
+          <td class="sub-text changes-cell">{{ changesText(entry) }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- MODAL: EDIT ACCESS -->
+<div class="modal-backdrop" *ngIf="editingUser() as user">
+  <div class="modal-container glass-card">
+    <div class="modal-header">
+      <h3>Access for {{ user.username }}</h3>
+      <button class="btn-close" (click)="closeAccess()" type="button">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+    <div class="modal-body">
+      <ng-container *ngTemplateOutlet="matrixEditor"></ng-container>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" type="button" (click)="closeAccess()">Cancel</button>
+      <button class="btn btn-primary" type="button" (click)="saveAccess()" [disabled]="isSaving()">
+        {{ isSaving() ? 'Saving...' : 'Save Access' }}
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: RESET PASSWORD -->
+<div class="modal-backdrop" *ngIf="resetTarget() as user">
+  <div class="modal-container glass-card">
+    <div class="modal-header">
+      <h3>Reset password · {{ user.username }}</h3>
+      <button class="btn-close" (click)="closePasswordReset()" type="button">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+    <div class="modal-body">
+      <label class="form-group">
+        <span>New password</span>
+        <input type="text" name="resetPassword" [ngModel]="resetValue()"
+               (ngModelChange)="resetValue.set($event)" autocomplete="off">
+        <small class="text-muted">Minimum 8 characters. The user can change it from My Account.</small>
+      </label>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" type="button" (click)="closePasswordReset()">Cancel</button>
+      <button class="btn btn-primary" type="button" (click)="submitPasswordReset()" [disabled]="isSaving()">
+        {{ isSaving() ? 'Saving...' : 'Set Password' }}
+      </button>
+    </div>
+  </div>
+</div>

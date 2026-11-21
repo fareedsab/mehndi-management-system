@@ -10,7 +10,7 @@
         <span class="material-symbols-outlined">list</span>
         <span>Vendor List</span>
       </button>
-      <button class="tab-btn" [class.active]="activeTab() === 'add'" (click)="activeTab.set('add')">
+      <button class="tab-btn" [class.active]="activeTab() === 'add'" *ngIf="access.can('vendors', 'create')" (click)="activeTab.set('add')">
         <span class="material-symbols-outlined">person_add</span>
         <span>Add Vendor</span>
       </button>
@@ -115,19 +115,19 @@
                 </span>
               </td>
               <td class="text-center actions-cell">
-                <button class="action-btn btn-pay" (click)="openModal(vendor, 'payment')" title="Record payment">
+                <button class="action-btn btn-pay" *ngIf="access.can('vendor-ledger', 'payment')" (click)="openModal(vendor, 'payment')" title="Record payment">
                   <span class="material-symbols-outlined">payments</span><span>Pay</span>
                 </button>
-                <button class="action-btn btn-adjust" (click)="openModal(vendor, 'adjustment')" title="Credit / debit note">
+                <button class="action-btn btn-adjust" *ngIf="access.can('vendor-ledger', 'adjust')" (click)="openModal(vendor, 'adjustment')" title="Credit / debit note">
                   <span class="material-symbols-outlined">swap_horiz</span><span>Adjust</span>
                 </button>
-                <button class="action-btn btn-plain" (click)="viewStatement(vendor)" title="Vendor ledger statement">
+                <button class="action-btn btn-plain" *ngIf="access.can('vendor-ledger')" (click)="viewStatement(vendor)" title="Vendor ledger statement">
                   <span class="material-symbols-outlined">receipt_long</span><span>Ledger</span>
                 </button>
-                <button class="action-btn btn-edit" (click)="openModal(vendor, 'edit')" title="Edit vendor">
+                <button class="action-btn btn-edit" *ngIf="access.can('vendors', 'update')" (click)="openModal(vendor, 'edit')" title="Edit vendor">
                   <span class="material-symbols-outlined">edit</span>
                 </button>
-                <button class="action-btn btn-delete" (click)="deleteVendor(vendor)" title="Delete vendor">
+                <button class="action-btn btn-delete" *ngIf="access.can('vendors', 'delete')" (click)="deleteVendor(vendor)" title="Delete vendor">
                   <span class="material-symbols-outlined">delete</span>
                 </button>
               </td>
@@ -179,7 +179,8 @@
             </div>
             <div class="form-group">
               <label>Credit Limit (Rs.)</label>
-              <input type="number" name="creditLimit" [(ngModel)]="newVendor.creditLimit" min="0" step="any" />
+              <input type="number" name="creditLimit" [(ngModel)]="newVendor.creditLimit" min="0" step="any"
+                     [disabled]="!access.can('vendors', 'creditLimit')" />
               <span class="input-hint text-muted">0 means no ceiling. Orders beyond the limit are blocked.</span>
             </div>
             <div class="form-group">
@@ -189,7 +190,8 @@
             </div>
             <div class="form-group">
               <label>Opening Payable Balance (Rs.)</label>
-              <input type="number" name="openingBalance" [(ngModel)]="newVendor.openingBalance" step="any" />
+              <input type="number" name="openingBalance" [(ngModel)]="newVendor.openingBalance" step="any"
+                     [disabled]="!access.can('vendor-ledger', 'adjust')" />
             </div>
             <div class="form-group">
               <label>Status</label>
@@ -293,11 +295,14 @@
             </div>
             <div class="form-group">
               <label>Credit Limit (Rs.)</label>
-              <input type="number" name="editLimit" [(ngModel)]="editVendor.creditLimit" min="0" step="any" />
+              <input type="number" name="editLimit" [(ngModel)]="editVendor.creditLimit" min="0" step="any"
+                     [disabled]="!access.can('vendors', 'creditLimit')" />
+              <span class="input-hint text-muted" *ngIf="!access.can('vendors', 'creditLimit')">Locked — a master account sets credit limits.</span>
             </div>
             <div class="form-group">
               <label>Payment Terms (days)</label>
-              <input type="number" name="editTerms" [(ngModel)]="editVendor.paymentTermsDays" min="0" />
+              <input type="number" name="editTerms" [(ngModel)]="editVendor.paymentTermsDays" min="0"
+                     [disabled]="!access.can('vendors', 'creditLimit')" />
             </div>
             <div class="form-group">
               <label>Opening Balance (Rs.)</label>

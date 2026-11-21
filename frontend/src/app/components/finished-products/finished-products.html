@@ -18,6 +18,7 @@
       <button 
         class="tab-btn" 
         [class.active]="activeTab() === 'add'" 
+        *ngIf="access.can('finished-products', 'create')"
         (click)="activeTab.set('add')">
         <span class="material-symbols-outlined">add_circle</span>
         <span>Add Finished Product</span>
@@ -68,7 +69,7 @@
             <p class="prod-desc text-muted">{{ prod.description || 'No description provided.' }}</p>
           </div>
           
-          <div class="card-footer">
+          <div class="card-footer" *ngIf="access.can('finished-products', 'update')">
             <button class="btn btn-secondary edit-card-btn" (click)="openModal(prod)">
               <span class="material-symbols-outlined">edit</span>
               <span>Edit Details</span>

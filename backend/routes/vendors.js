@@ -3,12 +3,13 @@ const router = express.Router();
 const { Op } = require('sequelize');
 const db = require('../models');
 const auth = require('../middleware/auth');
+const { requireAccess, hasAccess } = require('../services/access');
 const ledger = require('../services/vendorLedger');
 
 const ADJUSTMENT_TYPES = ['Credit Note', 'Debit Note', 'Manual Adjustment'];
 
 // GET /api/vendors - Vendor master with live credit position
-router.get('/', auth, async (req, res) => {
+router.get('/', auth, requireAccess('vendors', 'view'), async (req, res) => {
   try {
     const vendors = await db.Vendor.findAll({
       include: [{ model: db.User, as: 'creator', attributes: ['id', 'username'] }],
@@ -77,7 +78,7 @@ router.get('/', auth, async (req, res) => {
 });
 
 // GET /api/vendors/:id - Single vendor with its credit position
-router.get('/:id', auth, async (req, res) => {
+router.get('/:id', auth, requireAccess('vendors', 'view'), async (req, res) => {
   try {
     const vendor = await db.Vendor.findByPk(req.params.id, {
       include: [{ model: db.User, as: 'creator', attributes: ['id', 'username'] }]
@@ -111,7 +112,7 @@ router.get('/:id', auth, async (req, res) => {
 });
 
 // POST /api/vendors - Create vendor (optionally with an opening payable balance)
-router.post('/', auth, async (req, res) => {
+router.post('/', auth, requireAccess('vendors', 'create'), async (req, res) => {
   const transaction = await db.sequelize.transaction();
   try {
     const {
@@ -137,6 +138,25 @@ router.post('/', auth, async (req, res) => {
     if (limit < 0 || terms < 0) {
       await transaction.rollback();
       return res.status(400).json({ error: 'Credit limit and payment terms cannot be negative.' });
+    }
+
+    // Creating a vendor can open real money: an opening payable posts to the ledger
+    // and a credit limit sets how much the business may owe. Both need their own right.
+    if (limit > 0 && !hasAccess(req.access, 'vendors', 'creditLimit')) {
+      await transaction.rollback();
+      return res.status(403).json({
+        error: 'Not allowed: creditLimit on vendors. Create the vendor without a credit limit and ask an administrator to set one.',
+        module: 'vendors',
+        action: 'creditLimit'
+      });
+    }
+    if (opening !== 0 && !hasAccess(req.access, 'vendor-ledger', 'adjust')) {
+      await transaction.rollback();
+      return res.status(403).json({
+        error: 'Not allowed: adjust on vendor-ledger. Create the vendor without an opening balance and ask an administrator to post it.',
+        module: 'vendor-ledger',
+        action: 'adjust'
+      });
     }
 
     const vendor = await db.Vendor.create({
@@ -178,7 +198,7 @@ router.post('/', auth, async (req, res) => {
 });
 
 // PUT /api/vendors/:id - Update vendor master data
-router.put('/:id', auth, async (req, res) => {
+router.put('/:id', auth, requireAccess('vendors', 'update'), async (req, res) => {
   try {
     const vendor = await db.Vendor.findByPk(req.params.id);
     if (!vendor) {
@@ -189,6 +209,25 @@ router.put('/:id', auth, async (req, res) => {
       name, code, contactPerson, phone, email, address, city, ntn,
       creditLimit, paymentTermsDays, openingBalance, remarks, status
     } = req.body;
+
+    // Credit limit and payment terms decide how much the business may owe a vendor,
+    // so they need their own right plus an audit row even for someone with 'update'.
+    const touchesCreditTerms =
+      (creditLimit !== undefined && Number(creditLimit) !== Number(vendor.creditLimit)) ||
+      (paymentTermsDays !== undefined && Number(paymentTermsDays) !== Number(vendor.paymentTermsDays));
+
+    if (touchesCreditTerms && !hasAccess(req.access, 'vendors', 'creditLimit')) {
+      return res.status(403).json({
+        error: 'Not allowed: creditLimit on vendors. Ask an administrator to change a credit limit or payment terms.',
+        module: 'vendors',
+        action: 'creditLimit'
+      });
+    }
+
+    const previousCreditTerms = {
+      creditLimit: Number(vendor.creditLimit),
+      paymentTermsDays: Number(vendor.paymentTermsDays)
+    };
 
     if (name && name !== vendor.name) {
       const duplicate = await db.Vendor.findOne({ where: { name } });
@@ -231,6 +270,24 @@ router.put('/:id', auth, async (req, res) => {
 
     await vendor.save();
 
+    if (touchesCreditTerms) {
+      await db.AccessAuditLog.create({
+        actorUserId: req.user.id,
+        targetUserId: null,
+        module: 'vendors',
+        action: 'credit-terms-changed',
+        changes: {
+          vendorId: vendor.id,
+          vendorName: vendor.name,
+          before: previousCreditTerms,
+          after: {
+            creditLimit: Number(vendor.creditLimit),
+            paymentTermsDays: Number(vendor.paymentTermsDays)
+          }
+        }
+      });
+    }
+
     const sums = await ledger.getVendorBalance(vendor);
     res.json({
       ...vendor.get({ plain: true }),
@@ -244,7 +301,7 @@ router.put('/:id', auth, async (req, res) => {
 });
 
 // DELETE /api/vendors/:id - Remove a vendor that has no history
-router.delete('/:id', auth, async (req, res) => {
+router.delete('/:id', auth, requireAccess('vendors', 'delete'), async (req, res) => {
   try {
     const vendor = await db.Vendor.findByPk(req.params.id);
     if (!vendor) {
@@ -268,7 +325,7 @@ router.delete('/:id', auth, async (req, res) => {
 });
 
 // GET /api/vendors/:id/ledger - Vendor statement with running balance
-router.get('/:id/ledger', auth, async (req, res) => {
+router.get('/:id/ledger', auth, requireAccess('vendor-ledger', 'view'), async (req, res) => {
   try {
     const vendor = await db.Vendor.findByPk(req.params.id);
     if (!vendor) {
@@ -347,7 +404,7 @@ router.get('/:id/ledger', auth, async (req, res) => {
 });
 
 // GET /api/vendors/:id/open-orders - Orders still unpaid, used by the payment screen
-router.get('/:id/open-orders', auth, async (req, res) => {
+router.get('/:id/open-orders', auth, requireAccess('vendors', 'view'), async (req, res) => {
   try {
     const vendor = await db.Vendor.findByPk(req.params.id);
     if (!vendor) {
@@ -375,7 +432,7 @@ router.get('/:id/open-orders', auth, async (req, res) => {
 });
 
 // POST /api/vendors/:id/payments - Pay a vendor, optionally settled against an order number
-router.post('/:id/payments', auth, async (req, res) => {
+router.post('/:id/payments', auth, requireAccess('vendor-ledger', 'payment'), async (req, res) => {
   const transaction = await db.sequelize.transaction();
   try {
     const vendor = await db.Vendor.findByPk(req.params.id, { transaction });
@@ -463,7 +520,7 @@ router.post('/:id/payments', auth, async (req, res) => {
 });
 
 // GET /api/vendors/:id/payments - Payment history of a vendor
-router.get('/:id/payments', auth, async (req, res) => {
+router.get('/:id/payments', auth, requireAccess('vendor-ledger', 'view'), async (req, res) => {
   try {
     const payments = await db.VendorPayment.findAll({
       where: { vendorId: req.params.id },
@@ -481,7 +538,7 @@ router.get('/:id/payments', auth, async (req, res) => {
 });
 
 // POST /api/vendors/:id/adjustments - Manual credit/debit note against the vendor account
-router.post('/:id/adjustments', auth, async (req, res) => {
+router.post('/:id/adjustments', auth, requireAccess('vendor-ledger', 'adjust'), async (req, res) => {
   const transaction = await db.sequelize.transaction();
   try {
     const vendor = await db.Vendor.findByPk(req.params.id, { transaction });

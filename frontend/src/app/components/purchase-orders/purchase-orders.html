@@ -10,7 +10,7 @@
         <span class="material-symbols-outlined">list_alt</span>
         <span>Order Register</span>
       </button>
-      <button class="tab-btn" [class.active]="activeTab() === 'create'" (click)="startNewOrder()">
+      <button class="tab-btn" [class.active]="activeTab() === 'create'" *ngIf="access.can('purchase-orders', 'create')" (click)="startNewOrder()">
         <span class="material-symbols-outlined">add_shopping_cart</span>
         <span>New Purchase Order</span>
       </button>
@@ -142,28 +142,28 @@
                 <button class="action-btn btn-plain" (click)="openModal(order, 'detail')" title="Open order document">
                   <span class="material-symbols-outlined">visibility</span>
                 </button>
-                <button class="action-btn btn-edit" *ngIf="order.status === 'Draft'" (click)="startEditOrder(order)" title="Edit draft">
+                <button class="action-btn btn-edit" *ngIf="order.status === 'Draft' && access.can('purchase-orders', 'update')" (click)="startEditOrder(order)" title="Edit draft">
                   <span class="material-symbols-outlined">edit</span>
                 </button>
-                <button class="action-btn btn-confirm" *ngIf="order.status === 'Draft'" (click)="confirmOrder(order)" title="Confirm and release to vendor">
+                <button class="action-btn btn-confirm" *ngIf="order.status === 'Draft' && access.can('purchase-orders', 'approve')" (click)="confirmOrder(order)" title="Confirm and release to vendor">
                   <span class="material-symbols-outlined">done_all</span><span>Confirm</span>
                 </button>
                 <button class="action-btn btn-receive"
-                        *ngIf="order.status === 'Ordered' || order.status === 'Partially Received'"
+                        *ngIf="(order.status === 'Ordered' || order.status === 'Partially Received') && access.can('purchase-orders', 'receive')"
                         (click)="openModal(order, 'receive')" title="Receive goods into stock">
                   <span class="material-symbols-outlined">inventory</span><span>Receive</span>
                 </button>
                 <button class="action-btn btn-return"
-                        *ngIf="(order.status === 'Partially Received' || order.status === 'Received') && order.totalReturnedQty < order.totalReceivedQty"
+                        *ngIf="(order.status === 'Partially Received' || order.status === 'Received') && order.totalReturnedQty < order.totalReceivedQty && access.can('purchase-orders', 'returnGoods')"
                         (click)="openModal(order, 'return')" title="Return goods to vendor">
                   <span class="material-symbols-outlined">assignment_return</span><span>Return</span>
                 </button>
                 <button class="action-btn btn-cancel"
-                        *ngIf="order.status !== 'Cancelled' && order.receivedPercent === 0"
+                        *ngIf="order.status !== 'Cancelled' && order.receivedPercent === 0 && access.can('purchase-orders', 'cancel')"
                         (click)="openModal(order, 'cancel')" title="Cancel order">
                   <span class="material-symbols-outlined">cancel</span>
                 </button>
-                <button class="action-btn btn-delete" *ngIf="order.status === 'Draft'" (click)="deleteOrder(order)" title="Delete draft">
+                <button class="action-btn btn-delete" *ngIf="order.status === 'Draft' && access.can('purchase-orders', 'delete')" (click)="deleteOrder(order)" title="Delete draft">
                   <span class="material-symbols-outlined">delete</span>
                 </button>
               </td>
@@ -261,7 +261,7 @@
               <button type="submit" class="btn btn-secondary" [disabled]="isSaving()">
                 <span class="material-symbols-outlined">save</span><span>Save as Draft</span>
               </button>
-              <button type="button" class="btn btn-primary" [disabled]="isSaving()" (click)="onSave(true)">
+              <button type="button" class="btn btn-primary" [disabled]="isSaving()" *ngIf="access.can('purchase-orders', 'approve')" (click)="onSave(true)">
                 <span class="material-symbols-outlined">send</span>
                 <span>{{ editingOrderId() ? 'Save &amp; Confirm' : 'Confirm Order' }}</span>
               </button>

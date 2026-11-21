@@ -1,0 +1,48 @@
+<div class="page-container">
+  <div class="page-header">
+    <div>
+      <h2>My Account</h2>
+      <p class="text-muted">Change your own password and see the rights you have been given.</p>
+    </div>
+  </div>
+
+  <div class="alert alert-success" *ngIf="message()">{{ message() }}</div>
+  <div class="alert alert-danger" *ngIf="error()">{{ error() }}</div>
+
+  <div class="account-grid">
+    <form class="glass-card panel" (ngSubmit)="onSubmit()">
+      <h3>Change Password</h3>
+
+      <label class="form-group">
+        <span>Current password</span>
+        <input type="password" name="currentPassword" [(ngModel)]="currentPassword" autocomplete="current-password" required>
+      </label>
+
+      <label class="form-group">
+        <span>New password</span>
+        <input type="password" name="newPassword" [(ngModel)]="newPassword" autocomplete="new-password" required>
+        <small class="text-muted">At least 8 characters.</small>
+      </label>
+
+      <label class="form-group">
+        <span>Confirm new password</span>
+        <input type="password" name="confirmPassword" [(ngModel)]="confirmPassword" autocomplete="new-password" required>
+      </label>
+
+      <button class="btn btn-primary" type="submit" [disabled]="isSaving()">
+        <span class="material-symbols-outlined">lock_reset</span>
+        <span>{{ isSaving() ? 'Saving...' : 'Update Password' }}</span>
+      </button>
+    </form>
+
+    <div class="glass-card panel">
+      <h3>My Rights</h3>
+      <p class="text-muted" *ngIf="access.access() as state">
+        Signed in as <strong>{{ state.username }}</strong> · role {{ state.role }}
+      </p>
+      <ul class="rights-list">
+        <li *ngFor="let line of moduleSummaries">{{ line }}</li>
+      </ul>
+    </div>
+  </div>
+</div>

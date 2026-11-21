@@ -1,0 +1,68 @@
+.page-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.page-header h2 {
+  font-size: 20px;
+}
+
+.account-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+.panel {
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.panel h3 {
+  font-size: 15px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 13px;
+}
+
+.form-group input {
+  background: var(--bg-glass);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  color: var(--text-main);
+  padding: 9px 11px;
+  font-size: 13px;
+  font-family: var(--font-body);
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: var(--border-focus);
+}
+
+.form-group small {
+  font-size: 11px;
+}
+
+.rights-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-size: 12.5px;
+}
+
+.rights-list li {
+  padding: 8px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-glass);
+}

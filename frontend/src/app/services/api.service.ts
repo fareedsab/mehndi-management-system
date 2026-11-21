@@ -4,6 +4,7 @@ import { Router } from '@angular/router';
 import { Observable } from 'rxjs';
 import { tap } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
+import { AccessService } from './access.service';
 
 @Injectable({
   providedIn: 'root'
@@ -11,6 +12,7 @@ import { environment } from '../../environments/environment';
 export class ApiService {
   private readonly http = inject(HttpClient);
   private readonly router = inject(Router);
+  private readonly accessService = inject(AccessService);
 
   private readonly baseUrl = environment.apiUrl;
 
@@ -54,6 +56,7 @@ export class ApiService {
           localStorage.setItem('user', JSON.stringify(res.user));
           this.token.set(res.token);
           this.currentUser.set(res.user);
+          this.accessService.apply(res.access);
         }
       })
     );
@@ -64,7 +67,52 @@ export class ApiService {
     localStorage.removeItem('user');
     this.token.set(null);
     this.currentUser.set(null);
+    this.accessService.clear();
     this.router.navigate(['/login']);
+  }
+
+  // Re-reads the account and its grants; used on boot and after an access change.
+  getMe(): Observable<any> {
+    return this.http.get<any>(`${this.baseUrl}/auth/me`, { headers: this.getHeaders() }).pipe(
+      tap(res => this.accessService.apply(res.access))
+    );
+  }
+
+  getAccessCatalog(): Observable<any> {
+    return this.http.get<any>(`${this.baseUrl}/users/access-catalog`, { headers: this.getHeaders() });
+  }
+
+  changeOwnPassword(payload: { currentPassword: string; newPassword: string }): Observable<any> {
+    return this.http.post<any>(`${this.baseUrl}/auth/change-password`, payload, { headers: this.getHeaders() });
+  }
+
+  // USERS & ACCESS
+  getUsers(): Observable<any[]> {
+    return this.http.get<any[]>(`${this.baseUrl}/users`, { headers: this.getHeaders() });
+  }
+
+  createUser(payload: any): Observable<any> {
+    return this.http.post<any>(`${this.baseUrl}/users`, payload, { headers: this.getHeaders() });
+  }
+
+  updateUserPermissions(id: number, grants: any): Observable<any> {
+    return this.http.put<any>(`${this.baseUrl}/users/${id}/permissions`, { grants }, { headers: this.getHeaders() });
+  }
+
+  updateUserRole(id: number, role: string): Observable<any> {
+    return this.http.put<any>(`${this.baseUrl}/users/${id}/role`, { role }, { headers: this.getHeaders() });
+  }
+
+  resetUserPassword(id: number, password: string): Observable<any> {
+    return this.http.post<any>(`${this.baseUrl}/users/${id}/password`, { password }, { headers: this.getHeaders() });
+  }
+
+  deleteUser(id: number): Observable<any> {
+    return this.http.delete<any>(`${this.baseUrl}/users/${id}`, { headers: this.getHeaders() });
+  }
+
+  getAccessAudit(): Observable<any[]> {
+    return this.http.get<any[]>(`${this.baseUrl}/users/audit`, { headers: this.getHeaders() });
   }
 
   // RAW PRODUCTS

@@ -2,9 +2,10 @@ const express = require('express');
 const router = express.Router();
 const db = require('../models');
 const auth = require('../middleware/auth');
+const { requireAccess } = require('../services/access');
 
 // GET /api/raw-products - List all raw products
-router.get('/', auth, async (req, res) => {
+router.get('/', auth, requireAccess('raw-products', 'view'), async (req, res) => {
   try {
     const products = await db.RawProduct.findAll({
       order: [['id', 'ASC']]
@@ -28,7 +29,7 @@ router.get('/', auth, async (req, res) => {
 });
 
 // POST /api/raw-products - Add new raw product
-router.post('/', auth, async (req, res) => {
+router.post('/', auth, requireAccess('raw-products', 'create'), async (req, res) => {
   const transaction = await db.sequelize.transaction();
   try {
     const { name, category, unitType, openingStock, minimumStockLevel } = req.body;
@@ -93,7 +94,7 @@ router.post('/', auth, async (req, res) => {
 });
 
 // PUT /api/raw-products/:id - Edit raw product metadata (No direct stock edits allowed!)
-router.put('/:id', auth, async (req, res) => {
+router.put('/:id', auth, requireAccess('raw-products', 'update'), async (req, res) => {
   try {
     const { name, category, unitType, minimumStockLevel } = req.body;
     const { id } = req.params;
@@ -136,7 +137,7 @@ router.put('/:id', auth, async (req, res) => {
 });
 
 // POST /api/raw-products/:id/stock-in - Stock In (increase stock)
-router.post('/:id/stock-in', auth, async (req, res) => {
+router.post('/:id/stock-in', auth, requireAccess('raw-products', 'stockIn'), async (req, res) => {
   const transaction = await db.sequelize.transaction();
   try {
     const { id } = req.params;
@@ -193,7 +194,7 @@ router.post('/:id/stock-in', auth, async (req, res) => {
 });
 
 // POST /api/raw-products/:id/stock-out - Stock Out (decrease stock manually)
-router.post('/:id/stock-out', auth, async (req, res) => {
+router.post('/:id/stock-out', auth, requireAccess('raw-products', 'stockOut'), async (req, res) => {
   const transaction = await db.sequelize.transaction();
   try {
     const { id } = req.params;

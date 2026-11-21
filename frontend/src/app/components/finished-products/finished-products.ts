@@ -2,6 +2,7 @@ import { Component, inject, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../services/api.service';
+import { AccessService } from '../../services/access.service';
 
 @Component({
   selector: 'app-finished-products',
@@ -12,6 +13,7 @@ import { ApiService } from '../../services/api.service';
 })
 export class FinishedProductsComponent implements OnInit {
   private readonly apiService = inject(ApiService);
+  readonly access = inject(AccessService);
 
   products = signal<any[]>([]);
   isLoading = signal<boolean>(true);

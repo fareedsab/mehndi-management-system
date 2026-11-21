@@ -163,6 +163,12 @@ router.put('/:id/permissions', auth, requireAccess('users', 'update'), async (re
       return res.status(400).json({ error: 'Send { grants: { module: { view, create, update, delete, ... } } }.' });
     }
 
+    // Without this a user granted only users:update could widen their own matrix.
+    if (user.id === req.access.userId) {
+      await transaction.rollback();
+      return res.status(400).json({ error: 'You cannot change your own access. Ask another master account.' });
+    }
+
     // A master account needs no matrix; refuse to store rights that would be ignored.
     if (user.role === 'admin') {
       await transaction.rollback();
@@ -210,6 +216,9 @@ router.put('/:id/role', auth, requireAccess('users', 'update'), async (req, res)
     if (!['admin', 'user'].includes(role)) {
       return res.status(400).json({ error: "Role must be 'admin' or 'user'." });
     }
+    if (user.id === req.access.userId) {
+      return res.status(400).json({ error: 'You cannot change your own role. Ask another master account.' });
+    }
     if (user.role === 'admin' && role !== 'admin') {
       const otherAdmins = await db.User.count({ where: { role: 'admin', id: { [Op.ne]: user.id } } });
       if (otherAdmins === 0) {
@@ -240,6 +249,11 @@ router.post('/:id/password', auth, requireAccess('users', 'update'), async (req,
     const { password } = req.body;
     if (!password || String(password).length < 8) {
       return res.status(400).json({ error: 'Password must be at least 8 characters.' });
+    }
+    // Self-service changes go through /api/auth/change-password, which verifies the
+    // current password; an administrator reset must never target your own account.
+    if (user.id === req.access.userId) {
+      return res.status(400).json({ error: 'Use Change Password on My Account to change your own password.' });
     }
 
     user.passwordHash = await bcrypt.hash(password, 10);

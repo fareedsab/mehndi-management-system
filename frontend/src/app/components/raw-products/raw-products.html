@@ -18,6 +18,7 @@
       <button 
         class="tab-btn" 
         [class.active]="activeTab() === 'add'" 
+        *ngIf="access.can('raw-products', 'create')"
         (click)="activeTab.set('add')">
         <span class="material-symbols-outlined">add_circle</span>
         <span>Add Raw Product</span>
@@ -83,17 +84,20 @@
                 </span>
               </td>
               <td class="text-center actions-cell">
-                <button class="action-btn btn-stock-in" (click)="openModal(prod, 'stock-in')" title="Stock In">
-                  <span class="material-symbols-outlined">add</span>
-                  <span>In</span>
-                </button>
-                <button class="action-btn btn-stock-out" (click)="openModal(prod, 'stock-out')" title="Stock Out">
-                  <span class="material-symbols-outlined">remove</span>
-                  <span>Out</span>
-                </button>
-                <button class="action-btn btn-edit" (click)="openModal(prod, 'edit')" title="Edit Metadata">
-                  <span class="material-symbols-outlined">edit</span>
-                </button>
+                <ng-container *ngIf="access.canWrite('raw-products', ['stockIn', 'stockOut', 'update'])">
+                  <button class="action-btn btn-stock-in" *ngIf="access.can('raw-products', 'stockIn')" (click)="openModal(prod, 'stock-in')" title="Stock In">
+                    <span class="material-symbols-outlined">add</span>
+                    <span>In</span>
+                  </button>
+                  <button class="action-btn btn-stock-out" *ngIf="access.can('raw-products', 'stockOut')" (click)="openModal(prod, 'stock-out')" title="Stock Out">
+                    <span class="material-symbols-outlined">remove</span>
+                    <span>Out</span>
+                  </button>
+                  <button class="action-btn btn-edit" *ngIf="access.can('raw-products', 'update')" (click)="openModal(prod, 'edit')" title="Edit Metadata">
+                    <span class="material-symbols-outlined">edit</span>
+                  </button>
+                </ng-container>
+                <span class="sub-text text-muted" *ngIf="!access.canWrite('raw-products', ['stockIn', 'stockOut', 'update'])">read only</span>
               </td>
             </tr>
           </tbody>

@@ -2,9 +2,10 @@ const express = require('express');
 const router = express.Router();
 const db = require('../models');
 const auth = require('../middleware/auth');
+const { requireAccess } = require('../services/access');
 
 // GET /api/finished-products - List all finished products
-router.get('/', auth, async (req, res) => {
+router.get('/', auth, requireAccess('finished-products', 'view'), async (req, res) => {
   try {
     const products = await db.FinishedProduct.findAll({
       order: [['id', 'ASC']]
@@ -17,7 +18,7 @@ router.get('/', auth, async (req, res) => {
 });
 
 // POST /api/finished-products - Add new finished product
-router.post('/', auth, async (req, res) => {
+router.post('/', auth, requireAccess('finished-products', 'create'), async (req, res) => {
   try {
     const { name, description, status } = req.body;
     
@@ -44,7 +45,7 @@ router.post('/', auth, async (req, res) => {
 });
 
 // PUT /api/finished-products/:id - Edit finished product
-router.put('/:id', auth, async (req, res) => {
+router.put('/:id', auth, requireAccess('finished-products', 'update'), async (req, res) => {
   try {
     const { name, description, status } = req.body;
     const { id } = req.params;

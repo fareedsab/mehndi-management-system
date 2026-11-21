@@ -18,6 +18,7 @@
       <button 
         class="tab-btn" 
         [class.active]="activeTab() === 'create'" 
+        *ngIf="access.can('batches', 'create')"
         (click)="activeTab.set('create')">
         <span class="material-symbols-outlined">precision_manufacturing</span>
         <span>Produce New Batch</span>
@@ -77,10 +78,10 @@
                   <span class="material-symbols-outlined">visibility</span>
                   <span>View</span>
                 </button>
-                <button class="action-btn btn-edit" (click)="openModal(b.id, 'edit')" title="Edit Batch">
+                <button class="action-btn btn-edit" *ngIf="access.can('batches', 'update')" (click)="openModal(b.id, 'edit')" title="Edit Batch">
                   <span class="material-symbols-outlined">edit</span>
                 </button>
-                <button class="action-btn btn-stock-out" (click)="openModal(b.id, 'delete')" title="Delete Batch">
+                <button class="action-btn btn-stock-out" *ngIf="access.can('batches', 'delete')" (click)="openModal(b.id, 'delete')" title="Delete Batch">
                   <span class="material-symbols-outlined">delete</span>
                 </button>
               </td>

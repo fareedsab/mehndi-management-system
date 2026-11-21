@@ -2,6 +2,7 @@ import { Component, inject, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from '../../services/api.service';
+import { AccessService } from '../../services/access.service';
 import { forkJoin } from 'rxjs';
 
 interface RawUsageInput {
@@ -22,6 +23,7 @@ interface RawUsageInput {
 })
 export class BatchesComponent implements OnInit {
   private readonly apiService = inject(ApiService);
+  readonly access = inject(AccessService);
 
   batches = signal<any[]>([]);
   finishedProducts = signal<any[]>([]);

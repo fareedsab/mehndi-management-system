@@ -2,9 +2,10 @@ const express = require('express');
 const router = express.Router();
 const db = require('../models');
 const auth = require('../middleware/auth');
+const { requireAccess } = require('../services/access');
 
 // GET /api/batches - List all active (non-deleted) batches
-router.get('/', auth, async (req, res) => {
+router.get('/', auth, requireAccess('batches', 'view'), async (req, res) => {
   try {
     const batches = await db.Batch.findAll({
       where: { isDeleted: false },
@@ -22,7 +23,7 @@ router.get('/', auth, async (req, res) => {
 });
 
 // GET /api/batches/:id - Get batch detail including raw products consumed
-router.get('/:id', auth, async (req, res) => {
+router.get('/:id', auth, requireAccess('batches', 'view'), async (req, res) => {
   try {
     const { id } = req.params;
     const batch = await db.Batch.findOne({
@@ -50,7 +51,7 @@ router.get('/:id', auth, async (req, res) => {
 });
 
 // POST /api/batches - Create batch (deducts stock and records transactions)
-router.post('/', auth, async (req, res) => {
+router.post('/', auth, requireAccess('batches', 'create'), async (req, res) => {
   const transaction = await db.sequelize.transaction();
   try {
     const { finishedProductId, quantity, rawProductsUsed } = req.body;
@@ -191,7 +192,7 @@ router.post('/', auth, async (req, res) => {
 });
 
 // PUT /api/batches/:id - Update batch (reconciles inventory changes)
-router.put('/:id', auth, async (req, res) => {
+router.put('/:id', auth, requireAccess('batches', 'update'), async (req, res) => {
   const transaction = await db.sequelize.transaction();
   try {
     const { id } = req.params;
@@ -363,7 +364,7 @@ router.put('/:id', auth, async (req, res) => {
 });
 
 // DELETE /api/batches/:id - Soft Delete batch (restores inventory, logs transactions)
-router.delete('/:id', auth, async (req, res) => {
+router.delete('/:id', auth, requireAccess('batches', 'delete'), async (req, res) => {
   const transaction = await db.sequelize.transaction();
   try {
     const { id } = req.params;

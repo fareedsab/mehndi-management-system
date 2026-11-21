@@ -7,46 +7,58 @@
     </div>
 
     <nav class="nav-menu">
-      <a routerLink="/dashboard" routerLinkActive="active" class="nav-item">
+      <a routerLink="/dashboard" routerLinkActive="active" class="nav-item" *ngIf="access.can('dashboard')">
         <span class="material-symbols-outlined">dashboard</span>
         <span>Dashboard</span>
       </a>
 
-      <a routerLink="/raw-products" routerLinkActive="active" class="nav-item">
+      <a routerLink="/raw-products" routerLinkActive="active" class="nav-item" *ngIf="access.can('raw-products')">
         <span class="material-symbols-outlined">inventory_2</span>
         <span>Raw Products</span>
       </a>
 
-      <a routerLink="/finished-products" routerLinkActive="active" class="nav-item">
+      <a routerLink="/finished-products" routerLinkActive="active" class="nav-item" *ngIf="access.can('finished-products')">
         <span class="material-symbols-outlined">package_2</span>
         <span>Finished Products</span>
       </a>
 
-      <a routerLink="/batches" routerLinkActive="active" class="nav-item">
+      <a routerLink="/batches" routerLinkActive="active" class="nav-item" *ngIf="access.can('batches')">
         <span class="material-symbols-outlined">precision_manufacturing</span>
         <span>Batch Production</span>
       </a>
 
       <p class="nav-section">Purchasing &amp; Vendor Accounts</p>
 
-      <a routerLink="/vendors" routerLinkActive="active" class="nav-item">
+      <a routerLink="/vendors" routerLinkActive="active" class="nav-item" *ngIf="access.can('vendors')">
         <span class="material-symbols-outlined">storefront</span>
         <span>Vendors</span>
       </a>
 
-      <a routerLink="/purchase-orders" routerLinkActive="active" class="nav-item">
+      <a routerLink="/purchase-orders" routerLinkActive="active" class="nav-item" *ngIf="access.can('purchase-orders')">
         <span class="material-symbols-outlined">request_quote</span>
         <span>Purchase Orders</span>
       </a>
 
-      <a routerLink="/vendor-ledger" routerLinkActive="active" class="nav-item">
+      <a routerLink="/vendor-ledger" routerLinkActive="active" class="nav-item" *ngIf="access.can('vendor-ledger')">
         <span class="material-symbols-outlined">receipt_long</span>
         <span>Vendor Ledger</span>
       </a>
 
-      <a routerLink="/reports" routerLinkActive="active" class="nav-item">
+      <a routerLink="/reports" routerLinkActive="active" class="nav-item" *ngIf="access.can('reports')">
         <span class="material-symbols-outlined">analytics</span>
         <span>Reports &amp; Logs</span>
+      </a>
+
+      <p class="nav-section" *ngIf="access.can('users')">Administration</p>
+
+      <a routerLink="/users" routerLinkActive="active" class="nav-item" *ngIf="access.can('users')">
+        <span class="material-symbols-outlined">admin_panel_settings</span>
+        <span>Users &amp; Access</span>
+      </a>
+
+      <a routerLink="/account" routerLinkActive="active" class="nav-item">
+        <span class="material-symbols-outlined">lock</span>
+        <span>My Account</span>
       </a>
     </nav>
 
@@ -57,7 +69,7 @@
         </div>
         <div class="user-info">
           <p class="user-name">{{ user.username }}</p>
-          <p class="user-role">{{ user.role | titlecase }}</p>
+          <p class="user-role">{{ access.isAdmin() ? 'Master account' : 'Standard account' }}</p>
         </div>
       </div>
       <button class="btn btn-secondary logout-btn" (click)="logout()">
