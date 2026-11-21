@@ -31,8 +31,8 @@ jobs:
       - name: Sync Capacitor Android plugins
         working-directory: frontend
         run: |
-          mkdir -p android/app/src/main/assets
-          npx cap update android
+          mkdir -p dist/frontend/browser android/app/src/main/assets
+          npx cap sync android
 
       - name: Build Debug APK
         working-directory: frontend/android
