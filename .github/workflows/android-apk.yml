@@ -28,6 +28,10 @@ jobs:
         working-directory: frontend
         run: npm ci
 
+      - name: Sync Capacitor Android plugins
+        working-directory: frontend
+        run: npx cap update android
+
       - name: Build Debug APK
         working-directory: frontend/android
         run: |
