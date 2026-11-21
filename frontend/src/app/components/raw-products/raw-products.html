@@ -1,0 +1,299 @@
+<div class="page-container">
+  <!-- Page Header -->
+  <div class="page-header">
+    <div class="header-details">
+      <h2>Raw Materials Inventory</h2>
+      <p class="text-muted">Manage wrapping wrappers, product boxes, cartons, and material stocks.</p>
+    </div>
+    
+    <!-- Tab Controls -->
+    <div class="tab-controls">
+      <button 
+        class="tab-btn" 
+        [class.active]="activeTab() === 'list'" 
+        (click)="activeTab.set('list')">
+        <span class="material-symbols-outlined">list</span>
+        <span>Inventory List</span>
+      </button>
+      <button 
+        class="tab-btn" 
+        [class.active]="activeTab() === 'add'" 
+        (click)="activeTab.set('add')">
+        <span class="material-symbols-outlined">add_circle</span>
+        <span>Add Raw Product</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Loading View -->
+  <div class="flex-center loading-state" *ngIf="isLoading()">
+    <span class="spinner"></span>
+    <span style="margin-left: 10px;">Loading raw products...</span>
+  </div>
+
+  <!-- Main View Content -->
+  <div class="tab-content" *ngIf="!isLoading()">
+    <!-- TAB: LIST -->
+    <div class="tab-pane" *ngIf="activeTab() === 'list'">
+      <!-- Search & Filters -->
+      <div class="filter-bar glass-card">
+        <div class="search-box">
+          <span class="material-symbols-outlined search-icon">search</span>
+          <input 
+            type="text" 
+            [(ngModel)]="searchTerm" 
+            placeholder="Search products by name or category..." 
+          />
+        </div>
+      </div>
+
+      <!-- Inventory Grid/Table -->
+      <div class="table-container glass-card">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Product Name</th>
+              <th>Category</th>
+              <th>Unit Type</th>
+              <th class="text-right">Opening Stock</th>
+              <th class="text-right">Current Stock</th>
+              <th class="text-right">Min Alert Level</th>
+              <th class="text-center">Status</th>
+              <th class="text-center">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngIf="filteredProducts.length === 0">
+              <td colspan="9" class="text-center text-muted">No raw products found.</td>
+            </tr>
+            <tr *ngFor="let prod of filteredProducts" [class.row-alert]="prod.isLowStock">
+              <td>#{{ prod.id }}</td>
+              <td class="font-bold">{{ prod.name }}</td>
+              <td>{{ prod.category }}</td>
+              <td>{{ prod.unitType }}</td>
+              <td class="text-right">{{ prod.openingStock }}</td>
+              <td class="text-right stock-cell">
+                <span class="stock-num">{{ prod.currentStock }}</span>
+              </td>
+              <td class="text-right text-muted">{{ prod.minimumStockLevel }}</td>
+              <td class="text-center">
+                <span class="badge" [class.badge-danger]="prod.isLowStock" [class.badge-success]="!prod.isLowStock">
+                  {{ prod.isLowStock ? 'Low Stock' : 'In Stock' }}
+                </span>
+              </td>
+              <td class="text-center actions-cell">
+                <button class="action-btn btn-stock-in" (click)="openModal(prod, 'stock-in')" title="Stock In">
+                  <span class="material-symbols-outlined">add</span>
+                  <span>In</span>
+                </button>
+                <button class="action-btn btn-stock-out" (click)="openModal(prod, 'stock-out')" title="Stock Out">
+                  <span class="material-symbols-outlined">remove</span>
+                  <span>Out</span>
+                </button>
+                <button class="action-btn btn-edit" (click)="openModal(prod, 'edit')" title="Edit Metadata">
+                  <span class="material-symbols-outlined">edit</span>
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- TAB: ADD -->
+    <div class="tab-pane" *ngIf="activeTab() === 'add'">
+      <div class="form-container glass-card">
+        <h3>Create New Raw Material Card</h3>
+        <p class="text-muted" style="margin-bottom: 20px;">Define the product metadata and starting stock values.</p>
+
+        <form (ngSubmit)="onSubmitAdd()" class="raw-form">
+          <div class="form-grid">
+            <div class="form-group">
+              <label for="prodName">Product Name *</label>
+              <input 
+                type="text" 
+                id="prodName" 
+                name="name" 
+                [(ngModel)]="newProduct.name" 
+                placeholder="e.g. Nosheen Wrapper" 
+                required 
+              />
+            </div>
+
+            <div class="form-group">
+              <label for="prodCat">Category</label>
+              <input 
+                type="text" 
+                id="prodCat" 
+                name="category" 
+                [(ngModel)]="newProduct.category" 
+                placeholder="e.g. Packaging, Wrappers, Boxes" 
+              />
+            </div>
+
+            <div class="form-group">
+              <label for="prodUnit">Unit Type</label>
+              <select id="prodUnit" name="unitType" [(ngModel)]="newProduct.unitType">
+                <option value="Piece">Piece</option>
+                <option value="Packet">Packet</option>
+                <option value="Box">Box</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="prodMinStock">Minimum Stock Alert Level</label>
+              <input 
+                type="number" 
+                id="prodMinStock" 
+                name="minimumStockLevel" 
+                [(ngModel)]="newProduct.minimumStockLevel" 
+                min="0" 
+              />
+            </div>
+
+            <div class="form-group">
+              <label for="prodOpenStock">Opening Stock (Starting stock)</label>
+              <input 
+                type="number" 
+                id="prodOpenStock" 
+                name="openingStock" 
+                [(ngModel)]="newProduct.openingStock" 
+                min="0" 
+              />
+              <span class="input-hint text-muted">Will auto-generate a transaction log for inventory auditing.</span>
+            </div>
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary">
+              <span class="material-symbols-outlined">save</span>
+              <span>Save Product</span>
+            </button>
+            <button type="button" class="btn btn-secondary" (click)="activeTab.set('list')">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODALS OVERLAYS -->
+  <div class="modal-backdrop" *ngIf="activeModal()">
+    <!-- Modal Container -->
+    <div class="modal-container glass-card animate-modal">
+      <div class="modal-header">
+        <h3>
+          <span class="material-symbols-outlined header-icon" *ngIf="activeModal() === 'edit'">edit</span>
+          <span class="material-symbols-outlined header-icon text-success" *ngIf="activeModal() === 'stock-in'">add_circle</span>
+          <span class="material-symbols-outlined header-icon text-danger" *ngIf="activeModal() === 'stock-out'">remove_circle</span>
+          {{ activeModal() === 'edit' ? 'Edit Product Details' : '' }}
+          {{ activeModal() === 'stock-in' ? 'Manual Stock In' : '' }}
+          {{ activeModal() === 'stock-out' ? 'Manual Stock Out' : '' }}
+        </h3>
+        <button class="btn-close" (click)="closeModal()">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+
+      <div class="modal-body" *ngIf="selectedProduct() as prod">
+        <!-- Target Product Label -->
+        <div class="selected-product-banner">
+          <p class="text-muted">Target Product</p>
+          <h4 class="target-title">{{ prod.name }} <span class="unit-badge">({{ prod.unitType }})</span></h4>
+          <p class="current-stock-info">Current Stock: <strong>{{ prod.currentStock }}</strong> {{ prod.unitType }}</p>
+        </div>
+
+        <!-- Alerts -->
+        <div class="alert alert-danger" *ngIf="modalError() as error">
+          <span class="material-symbols-outlined">error</span>
+          <span>{{ error }}</span>
+        </div>
+        <div class="alert alert-success" *ngIf="modalSuccess() as success">
+          <span class="material-symbols-outlined">check_circle</span>
+          <span>{{ success }}</span>
+        </div>
+
+        <!-- FORM: EDIT -->
+        <form (ngSubmit)="onSubmitEdit()" *ngIf="activeModal() === 'edit'" class="modal-form">
+          <div class="form-group">
+            <label for="editName">Product Name *</label>
+            <input type="text" id="editName" name="editName" [(ngModel)]="editData.name" required />
+          </div>
+          <div class="form-group">
+            <label for="editCat">Category</label>
+            <input type="text" id="editCat" name="editCat" [(ngModel)]="editData.category" />
+          </div>
+          <div class="form-group">
+            <label for="editUnit">Unit Type</label>
+            <select id="editUnit" name="editUnit" [(ngModel)]="editData.unitType">
+              <option value="Piece">Piece</option>
+              <option value="Packet">Packet</option>
+              <option value="Box">Box</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="editMin">Minimum Stock Alert Level</label>
+            <input type="number" id="editMin" name="editMin" [(ngModel)]="editData.minimumStockLevel" min="0" />
+          </div>
+          <div class="modal-footer">
+            <button type="submit" class="btn btn-primary">Save Changes</button>
+            <button type="button" class="btn btn-secondary" (click)="closeModal()">Cancel</button>
+          </div>
+        </form>
+
+        <!-- FORM: STOCK IN -->
+        <form (ngSubmit)="onSubmitStockIn()" *ngIf="activeModal() === 'stock-in'" class="modal-form">
+          <div class="form-group">
+            <label for="inQty">Quantity to Add *</label>
+            <input type="number" id="inQty" name="inQty" [(ngModel)]="stockInData.quantityAdded" min="0.01" step="any" required />
+          </div>
+          <div class="form-group">
+            <label for="inRef">Purchase Reference (Invoice / GRN)</label>
+            <input type="text" id="inRef" name="inRef" [(ngModel)]="stockInData.purchaseReference" placeholder="e.g. INV-9902" />
+          </div>
+          <div class="form-group">
+            <label for="inRem">Remarks / Comments</label>
+            <textarea id="inRem" name="inRem" [(ngModel)]="stockInData.remarks" placeholder="e.g. Received shipment from Nosheen Packaging"></textarea>
+          </div>
+          <div class="modal-footer">
+            <button type="submit" class="btn btn-primary">
+              <span class="material-symbols-outlined">add</span>
+              <span>Confirm Stock In</span>
+            </button>
+            <button type="button" class="btn btn-secondary" (click)="closeModal()">Cancel</button>
+          </div>
+        </form>
+
+        <!-- FORM: STOCK OUT -->
+        <form (ngSubmit)="onSubmitStockOut()" *ngIf="activeModal() === 'stock-out'" class="modal-form">
+          <div class="form-group">
+            <label for="outQty">Quantity to Deduct *</label>
+            <input type="number" id="outQty" name="outQty" [(ngModel)]="stockOutData.quantityDeducted" min="0.01" step="any" required />
+          </div>
+          <div class="form-group">
+            <label for="outReason">Reason for Deduction</label>
+            <select id="outReason" name="outReason" [(ngModel)]="stockOutData.reason">
+              <option value="Damage">Damage</option>
+              <option value="Expiry">Expiry</option>
+              <option value="Return">Return to Vendor</option>
+              <option value="Adjustment">Audit Adjustment</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="outRem">Remarks / Comments</label>
+            <textarea id="outRem" name="outRem" [(ngModel)]="stockOutData.remarks" placeholder="e.g. Packet found torn in bin"></textarea>
+          </div>
+          <div class="modal-footer">
+            <button type="submit" class="btn btn-danger">
+              <span class="material-symbols-outlined">remove</span>
+              <span>Confirm Stock Out</span>
+            </button>
+            <button type="button" class="btn btn-secondary" (click)="closeModal()">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>

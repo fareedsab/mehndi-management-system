@@ -1,0 +1,687 @@
+<div class="page-container">
+  <div class="page-header">
+    <div class="header-details">
+      <h2>Purchase Orders</h2>
+      <p class="text-muted">Vendor-wise raw material orders with receiving, returns and payable tracking.</p>
+    </div>
+
+    <div class="tab-controls">
+      <button class="tab-btn" [class.active]="activeTab() === 'list'" (click)="activeTab.set('list')">
+        <span class="material-symbols-outlined">list_alt</span>
+        <span>Order Register</span>
+      </button>
+      <button class="tab-btn" [class.active]="activeTab() === 'create'" (click)="startNewOrder()">
+        <span class="material-symbols-outlined">add_shopping_cart</span>
+        <span>New Purchase Order</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="flex-center loading-state" *ngIf="isLoading()">
+    <span class="spinner"></span>
+    <span style="margin-left: 10px;">Loading purchase orders...</span>
+  </div>
+
+  <div class="tab-content" *ngIf="!isLoading()">
+    <!-- TAB: REGISTER -->
+    <div class="tab-pane" *ngIf="activeTab() === 'list'">
+      <div class="summary-grid">
+        <div class="glass-card summary-card">
+          <span class="material-symbols-outlined icon-orders">receipt_long</span>
+          <div>
+            <h3>{{ totals.orders }}</h3>
+            <p class="text-muted">Total Purchase Orders</p>
+          </div>
+        </div>
+        <div class="glass-card summary-card">
+          <span class="material-symbols-outlined icon-draft">edit_note</span>
+          <div>
+            <h3>{{ totals.draft }}</h3>
+            <p class="text-muted">Draft Orders</p>
+          </div>
+        </div>
+        <div class="glass-card summary-card">
+          <span class="material-symbols-outlined icon-await">local_shipping</span>
+          <div>
+            <h3>{{ totals.awaiting }}</h3>
+            <p class="text-muted">Awaiting / Partial Receipt</p>
+          </div>
+        </div>
+        <div class="glass-card summary-card">
+          <span class="material-symbols-outlined icon-value">payments</span>
+          <div>
+            <h3>{{ money(totals.orderValue) }}</h3>
+            <p class="text-muted">Order Value (non-cancelled)</p>
+          </div>
+        </div>
+        <div class="glass-card summary-card" [class.alert-card]="totals.outstanding > 0">
+          <span class="material-symbols-outlined icon-out">error</span>
+          <div>
+            <h3>{{ money(totals.outstanding) }}</h3>
+            <p class="text-muted">Total Outstanding</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="filter-bar glass-card">
+        <div class="search-box">
+          <span class="material-symbols-outlined search-icon">search</span>
+          <input type="text" [(ngModel)]="filters.search" placeholder="Search by PO number or vendor..." />
+        </div>
+        <select class="status-filter" [(ngModel)]="filters.status">
+          <option value="">All Status</option>
+          <option *ngFor="let status of statusOptions" [value]="status">{{ status }}</option>
+        </select>
+        <select class="status-filter" [(ngModel)]="filters.vendorId">
+          <option value="">All Vendors</option>
+          <option *ngFor="let vendor of vendors()" [ngValue]="vendor.id">{{ vendor.name }}</option>
+        </select>
+        <div class="date-range">
+          <input type="date" [(ngModel)]="filters.startDate" title="From order date" />
+          <span class="text-muted">to</span>
+          <input type="date" [(ngModel)]="filters.endDate" title="To order date" />
+        </div>
+        <button class="btn btn-secondary btn-sm" (click)="filters = { status: '', vendorId: '', startDate: '', endDate: '', search: '' }">
+          <span class="material-symbols-outlined">filter_alt_off</span><span>Clear</span>
+        </button>
+      </div>
+
+      <div class="table-container glass-card">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>PO Number</th>
+              <th>Vendor</th>
+              <th class="text-center">Date</th>
+              <th>Items</th>
+              <th class="text-right">Order Total</th>
+              <th class="text-center">Received</th>
+              <th class="text-right">Billed</th>
+              <th class="text-right">Outstanding</th>
+              <th class="text-center">Status</th>
+              <th class="text-center">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngIf="filteredOrders.length === 0">
+              <td colspan="10" class="text-center text-muted">No purchase orders match these filters.</td>
+            </tr>
+            <tr *ngFor="let order of filteredOrders" [class.row-settled]="order.isSettled && order.status !== 'Cancelled'">
+              <td>
+                <div class="font-bold">{{ order.poNumber }}</div>
+                <div class="sub-text text-muted">{{ order.paymentMode }}<span *ngIf="order.vendorInvoiceNumber"> · Inv {{ order.vendorInvoiceNumber }}</span></div>
+              </td>
+              <td>
+                <div>{{ order.vendor?.name || '—' }}</div>
+                <div class="sub-text text-muted" *ngIf="order.expectedDate">Expected {{ order.expectedDate | date: 'dd MMM yyyy' }}</div>
+              </td>
+              <td class="text-center sub-text">{{ order.orderDate | date: 'dd MMM yyyy' }}</td>
+              <td class="sub-text">
+                <div *ngFor="let item of order.items">
+                  {{ item.rawProduct?.name }} <span class="text-muted">· {{ item.quantityOrdered }} {{ item.rawProduct?.unitType }}</span>
+                </div>
+              </td>
+              <td class="text-right font-bold">{{ money(order.totalAmount) }}</td>
+              <td class="text-center">
+                <div class="progress-wrap">
+                  <div class="progress-bar">
+                    <div class="progress-fill" [style.width.%]="order.receivedPercent"></div>
+                  </div>
+                  <span class="sub-text text-muted">{{ order.receivedPercent }}%</span>
+                </div>
+              </td>
+              <td class="text-right">{{ money(order.billedAmount) }}</td>
+              <td class="text-right font-bold" [class.text-danger]="order.outstanding > 0">
+                <span *ngIf="order.outstanding > 0">{{ money(order.outstanding) }}</span>
+                <span *ngIf="order.outstanding <= 0" class="text-success">Settled</span>
+              </td>
+              <td class="text-center">
+                <span class="badge" [ngClass]="statusClass(order.status)">{{ order.status }}</span>
+              </td>
+              <td class="text-center actions-cell">
+                <button class="action-btn btn-plain" (click)="openModal(order, 'detail')" title="Open order document">
+                  <span class="material-symbols-outlined">visibility</span>
+                </button>
+                <button class="action-btn btn-edit" *ngIf="order.status === 'Draft'" (click)="startEditOrder(order)" title="Edit draft">
+                  <span class="material-symbols-outlined">edit</span>
+                </button>
+                <button class="action-btn btn-confirm" *ngIf="order.status === 'Draft'" (click)="confirmOrder(order)" title="Confirm and release to vendor">
+                  <span class="material-symbols-outlined">done_all</span><span>Confirm</span>
+                </button>
+                <button class="action-btn btn-receive"
+                        *ngIf="order.status === 'Ordered' || order.status === 'Partially Received'"
+                        (click)="openModal(order, 'receive')" title="Receive goods into stock">
+                  <span class="material-symbols-outlined">inventory</span><span>Receive</span>
+                </button>
+                <button class="action-btn btn-return"
+                        *ngIf="(order.status === 'Partially Received' || order.status === 'Received') && order.totalReturnedQty < order.totalReceivedQty"
+                        (click)="openModal(order, 'return')" title="Return goods to vendor">
+                  <span class="material-symbols-outlined">assignment_return</span><span>Return</span>
+                </button>
+                <button class="action-btn btn-cancel"
+                        *ngIf="order.status !== 'Cancelled' && order.receivedPercent === 0"
+                        (click)="openModal(order, 'cancel')" title="Cancel order">
+                  <span class="material-symbols-outlined">cancel</span>
+                </button>
+                <button class="action-btn btn-delete" *ngIf="order.status === 'Draft'" (click)="deleteOrder(order)" title="Delete draft">
+                  <span class="material-symbols-outlined">delete</span>
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- TAB: CREATE / EDIT -->
+    <div class="tab-pane" *ngIf="activeTab() === 'create'">
+      <div class="order-form-layout">
+        <div class="glass-card form-container">
+          <h3>{{ editingOrderId() ? 'Edit Purchase Order #' + editingOrderId() : 'New Purchase Order' }}</h3>
+          <p class="text-muted" style="margin-bottom: 20px;">
+            Draft orders can be edited freely. Confirming releases the order and checks the vendor credit limit.
+          </p>
+
+          <form (ngSubmit)="onSave(false)" class="order-form">
+            <div class="form-grid">
+              <div class="form-group">
+                <label>Vendor *</label>
+                <select name="vendorId" [(ngModel)]="form.vendorId" required>
+                  <option [ngValue]="null">Select vendor</option>
+                  <option *ngFor="let vendor of vendors()" [ngValue]="vendor.id">
+                    {{ vendor.name }}{{ vendor.creditLimit > 0 ? ' — ' + money(vendor.creditLimit) + ' limit' : '' }}
+                  </option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Order Date *</label>
+                <input type="date" name="orderDate" [(ngModel)]="form.orderDate" required />
+              </div>
+              <div class="form-group">
+                <label>Expected Delivery</label>
+                <input type="date" name="expectedDate" [(ngModel)]="form.expectedDate" />
+              </div>
+              <div class="form-group">
+                <label>Payment Mode</label>
+                <select name="paymentMode" [(ngModel)]="form.paymentMode">
+                  <option value="Credit">Credit</option>
+                  <option value="Advance">Advance</option>
+                  <option value="Cash on Delivery">Cash on Delivery</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Vendor Invoice No</label>
+                <input type="text" name="vendorInvoiceNumber" [(ngModel)]="form.vendorInvoiceNumber" />
+              </div>
+              <div class="form-group">
+                <label>Vendor Invoice Date</label>
+                <input type="date" name="vendorInvoiceDate" [(ngModel)]="form.vendorInvoiceDate" />
+              </div>
+            </div>
+
+            <div class="lines-head">
+              <h4>Order Lines</h4>
+              <button type="button" class="btn btn-secondary btn-sm" (click)="addLine()">
+                <span class="material-symbols-outlined">add</span><span>Add Line</span>
+              </button>
+            </div>
+
+            <div class="lines-table">
+              <div class="lines-header">
+                <span>Raw Product *</span>
+                <span class="text-right">Qty *</span>
+                <span class="text-right">Unit / Rate</span>
+                <span class="text-right">Rate (Rs.)</span>
+                <span class="text-right">Amount</span>
+                <span></span>
+              </div>
+              <div class="lines-row" *ngFor="let line of form.items; let i = index">
+                <select name="product{{ i }}" [(ngModel)]="line.rawProductId" (ngModelChange)="onProductChange(line)">
+                  <option [ngValue]="null">Select raw product</option>
+                  <option *ngFor="let product of rawProducts()" [ngValue]="product.id">
+                    {{ product.name }} ({{ product.currentStock }} {{ product.unitType }} in stock)
+                  </option>
+                </select>
+                <input type="number" class="text-right" name="qty{{ i }}" [(ngModel)]="line.quantityOrdered" min="0.001" step="any" placeholder="0" />
+                <span class="text-muted unit-cell">{{ productOf(line.rawProductId)?.unitType || '—' }}</span>
+                <input type="number" class="text-right" name="rate{{ i }}" [(ngModel)]="line.unitRate" min="0" step="any" placeholder="0.00" />
+                <span class="text-right line-amount">{{ money(lineAmount(line)) }}</span>
+                <button type="button" class="btn-icon" (click)="removeLine(i)" title="Remove line">
+                  <span class="material-symbols-outlined">close</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="form-group remarks-group">
+              <label>Remarks</label>
+              <textarea name="remarks" [(ngModel)]="form.remarks" rows="2" placeholder="e.g. Deliver to main store before the bridal season"></textarea>
+            </div>
+
+            <div class="form-actions">
+              <button type="submit" class="btn btn-secondary" [disabled]="isSaving()">
+                <span class="material-symbols-outlined">save</span><span>Save as Draft</span>
+              </button>
+              <button type="button" class="btn btn-primary" [disabled]="isSaving()" (click)="onSave(true)">
+                <span class="material-symbols-outlined">send</span>
+                <span>{{ editingOrderId() ? 'Save &amp; Confirm' : 'Confirm Order' }}</span>
+              </button>
+              <button type="button" class="btn btn-ghost" (click)="cancelEdit()">Discard</button>
+            </div>
+          </form>
+        </div>
+
+        <aside class="glass-card totals-panel">
+          <h4>Order Summary</h4>
+          <div class="totals-row">
+            <span class="text-muted">Lines</span>
+            <span>{{ form.items.length }}</span>
+          </div>
+          <div class="totals-row">
+            <span class="text-muted">Subtotal</span>
+            <span>{{ money(subtotal) }}</span>
+          </div>
+          <div class="totals-row">
+            <span class="text-muted">Discount (Rs.)</span>
+            <input type="number" class="inline-input text-right" name="discountAmount" [(ngModel)]="form.discountAmount" min="0" step="any" />
+          </div>
+          <div class="totals-row">
+            <span class="text-muted">Taxable</span>
+            <span>{{ money(taxableAmount) }}</span>
+          </div>
+          <div class="totals-row">
+            <span class="text-muted">Tax %</span>
+            <input type="number" class="inline-input text-right" name="taxPercent" [(ngModel)]="form.taxPercent" min="0" max="100" step="any" />
+          </div>
+          <div class="totals-row">
+            <span class="text-muted">Tax Amount</span>
+            <span>{{ money(taxAmount) }}</span>
+          </div>
+          <div class="totals-row grand">
+            <span>Grand Total</span>
+            <span>{{ money(grandTotal) }}</span>
+          </div>
+          <p class="text-muted totals-note">
+            Discount and tax are applied proportionally on every goods receipt, so stock value and vendor ledger always match the order total.
+          </p>
+        </aside>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: ORDER DOCUMENT -->
+  <div class="modal-backdrop" *ngIf="activeModal() === 'detail'">
+    <div class="modal-container glass-card animate-modal wide-modal" *ngIf="selectedOrder() as order">
+      <div class="modal-header">
+        <h3>
+          <span class="material-symbols-outlined header-icon">receipt_long</span>
+          {{ order.poNumber }}
+          <span class="badge" [ngClass]="statusClass(order.status)">{{ order.status }}</span>
+        </h3>
+        <button class="btn-close" (click)="closeModal()"><span class="material-symbols-outlined">close</span></button>
+      </div>
+
+      <div class="modal-body">
+        <div class="vendor-banner">
+          <div>
+            <p class="text-muted">Vendor</p>
+            <h4 class="target-title">{{ order.vendor?.name }}</h4>
+            <p class="sub-text text-muted">{{ order.vendor?.phone || '' }} {{ order.vendor?.city ? '· ' + order.vendor.city : '' }}</p>
+          </div>
+          <div class="banner-numbers">
+            <div>
+              <span class="sub-text text-muted">Order Total</span>
+              <strong>{{ money(order.totalAmount) }}</strong>
+            </div>
+            <div>
+              <span class="sub-text text-muted">Billed</span>
+              <strong>{{ money(order.billedAmount) }}</strong>
+            </div>
+            <div>
+              <span class="sub-text text-muted">Settled</span>
+              <strong class="text-success">{{ money(order.settledAmount) }}</strong>
+            </div>
+            <div>
+              <span class="sub-text text-muted">Outstanding</span>
+              <strong [class.text-danger]="order.outstanding > 0">{{ money(order.outstanding) }}</strong>
+            </div>
+          </div>
+        </div>
+
+        <div class="meta-grid">
+          <div><span class="text-muted">Order date</span><strong>{{ order.orderDate | date: 'dd MMM yyyy' }}</strong></div>
+          <div><span class="text-muted">Expected</span><strong>{{ order.expectedDate ? (order.expectedDate | date: 'dd MMM yyyy') : '—' }}</strong></div>
+          <div><span class="text-muted">Payment mode</span><strong>{{ order.paymentMode }}</strong></div>
+          <div><span class="text-muted">Vendor invoice</span><strong>{{ order.vendorInvoiceNumber || '—' }}</strong></div>
+          <div><span class="text-muted">Subtotal</span><strong>{{ money(order.subtotal) }}</strong></div>
+          <div><span class="text-muted">Discount</span><strong>{{ money(order.discountAmount) }}</strong></div>
+          <div><span class="text-muted">Tax</span><strong>{{ order.taxPercent }}% · {{ money(order.taxAmount) }}</strong></div>
+          <div><span class="text-muted">Confirmed</span><strong>{{ order.confirmedAt ? (order.confirmedAt | date: 'dd MMM yyyy') : 'Not confirmed' }}</strong></div>
+        </div>
+
+        <div class="alert alert-danger" *ngIf="modalError() as error">
+          <span class="material-symbols-outlined">error</span><span>{{ error }}</span>
+        </div>
+        <div class="alert alert-success" *ngIf="modalSuccess() as success">
+          <span class="material-symbols-outlined">check_circle</span><span>{{ success }}</span>
+        </div>
+
+        <h4 class="section-title">Lines</h4>
+        <table class="nested-table">
+          <thead>
+            <tr>
+              <th>Raw Product</th>
+              <th class="text-right">Ordered</th>
+              <th class="text-right">Received</th>
+              <th class="text-right">Returned</th>
+              <th class="text-right">Pending</th>
+              <th class="text-right">Rate</th>
+              <th class="text-right">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let item of order.items">
+              <td>{{ item.rawProduct?.name }}</td>
+              <td class="text-right">{{ item.quantityOrdered }}</td>
+              <td class="text-right text-success">{{ item.quantityReceived }}</td>
+              <td class="text-right" [class.text-danger]="item.quantityReturned > 0">{{ item.quantityReturned }}</td>
+              <td class="text-right">{{ item.remainingQuantity }}</td>
+              <td class="text-right">{{ money(item.unitRate) }}</td>
+              <td class="text-right">{{ money(item.lineAmount) }}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <ng-container *ngIf="order.receipts?.length">
+          <h4 class="section-title">Goods Receipts</h4>
+          <table class="nested-table">
+            <thead>
+              <tr>
+                <th>GRN</th>
+                <th class="text-center">Date</th>
+                <th class="text-center">Items</th>
+                <th class="text-right">Goods Value</th>
+                <th class="text-right">Other Charges</th>
+                <th class="text-right">Credited</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let grn of order.receipts">
+                <td>{{ grn.grnNumber }}</td>
+                <td class="text-center">{{ grn.receivedDate | date: 'dd MMM yyyy' }}</td>
+                <td class="text-center">{{ grn.items?.length || 0 }}</td>
+                <td class="text-right">{{ money(grn.goodsValue) }}</td>
+                <td class="text-right">{{ money(grn.otherCharges) }}</td>
+                <td class="text-right font-bold">{{ money(grn.creditedAmount) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </ng-container>
+
+        <ng-container *ngIf="order.returns?.length">
+          <h4 class="section-title">Purchase Returns</h4>
+          <table class="nested-table">
+            <thead>
+              <tr>
+                <th>Return No</th>
+                <th class="text-center">Date</th>
+                <th class="text-center">Reason</th>
+                <th class="text-right">Value</th>
+                <th class="text-right">Debited</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let ret of order.returns">
+                <td>{{ ret.returnNumber }}</td>
+                <td class="text-center">{{ ret.returnDate | date: 'dd MMM yyyy' }}</td>
+                <td class="text-center">{{ ret.reason }}</td>
+                <td class="text-right">{{ money(ret.goodsValue) }}</td>
+                <td class="text-right font-bold text-danger">{{ money(ret.debitedAmount) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </ng-container>
+
+        <ng-container *ngIf="order.ledgerEntries?.length">
+          <h4 class="section-title">Ledger Against This Order</h4>
+          <table class="nested-table">
+            <thead>
+              <tr>
+                <th>Voucher</th>
+                <th class="text-center">Date</th>
+                <th>Type</th>
+                <th class="text-center">Direction</th>
+                <th class="text-right">Amount</th>
+                <th>Narration</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let entry of order.ledgerEntries">
+                <td>{{ entry.voucherNumber }}</td>
+                <td class="text-center">{{ entry.entryDate | date: 'dd MMM yyyy' }}</td>
+                <td>{{ entry.entryType }}</td>
+                <td class="text-center">
+                  <span class="badge" [class.badge-danger]="entry.direction === 'Debit'" [class.badge-info]="entry.direction === 'Credit'">{{ entry.direction }}</span>
+                </td>
+                <td class="text-right font-bold">{{ money(entry.amount) }}</td>
+                <td class="sub-text text-muted">{{ entry.narration || '' }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </ng-container>
+
+        <div class="modal-footer">
+          <button class="btn btn-secondary" (click)="closeModal()">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: RECEIVE GOODS -->
+  <div class="modal-backdrop" *ngIf="activeModal() === 'receive'">
+    <div class="modal-container glass-card animate-modal wide-modal" *ngIf="selectedOrder() as order">
+      <div class="modal-header">
+        <h3>
+          <span class="material-symbols-outlined header-icon text-success">inventory</span>
+          Receive Goods · {{ order.poNumber }}
+        </h3>
+        <button class="btn-close" (click)="closeModal()"><span class="material-symbols-outlined">close</span></button>
+      </div>
+
+      <div class="modal-body">
+        <p class="text-muted">Quantity received is added to raw material stock and credited to the vendor payable ledger.</p>
+
+        <div class="alert alert-danger" *ngIf="modalError() as error">
+          <span class="material-symbols-outlined">error</span><span>{{ error }}</span>
+        </div>
+        <div class="alert alert-success" *ngIf="modalSuccess() as success">
+          <span class="material-symbols-outlined">check_circle</span><span>{{ success }}</span>
+        </div>
+
+        <form (ngSubmit)="onSubmitReceive()" class="modal-form" *ngIf="receiveForm.lines.length > 0; else nothingToReceive">
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Received Date</label>
+              <input type="date" name="receivedDate" [(ngModel)]="receiveForm.receivedDate" />
+            </div>
+            <div class="form-group">
+              <label>Vendor Invoice No</label>
+              <input type="text" name="grnInvoice" [(ngModel)]="receiveForm.vendorInvoiceNumber" />
+            </div>
+            <div class="form-group">
+              <label>Other Charges (freight, loading)</label>
+              <input type="number" name="otherCharges" [(ngModel)]="receiveForm.otherCharges" min="0" step="any" />
+              <span class="input-hint text-muted">Added to the vendor credit for this receipt.</span>
+            </div>
+          </div>
+
+          <table class="nested-table">
+            <thead>
+              <tr>
+                <th>Raw Product</th>
+                <th class="text-right">Pending</th>
+                <th class="text-right">Received Qty</th>
+                <th class="text-right">Rate</th>
+                <th class="text-right">Value</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let line of receiveForm.lines; let i = index">
+                <td>{{ line.productName }} <span class="sub-text text-muted">({{ line.unitType }})</span></td>
+                <td class="text-right">{{ line.remaining }}</td>
+                <td class="text-right">
+                  <input type="number" class="inline-input" name="recv{{ i }}" [(ngModel)]="line.quantityReceived" min="0" max="{{ line.remaining }}" step="any" />
+                </td>
+                <td class="text-right">{{ money(line.unitRate) }}</td>
+                <td class="text-right">{{ money(line.quantityReceived * line.unitRate) }}</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div class="receipt-total">
+            <span class="text-muted">Goods value (gross, before discount &amp; tax)</span>
+            <strong>{{ money(receiveValue) }}</strong>
+          </div>
+
+          <div class="form-group">
+            <label>Remarks</label>
+            <input type="text" name="grnRemarks" [(ngModel)]="receiveForm.remarks" />
+          </div>
+
+          <div class="modal-footer">
+            <button type="submit" class="btn btn-primary">
+              <span class="material-symbols-outlined">check</span><span>Post Goods Receipt</span>
+            </button>
+            <button type="button" class="btn btn-secondary" (click)="closeModal()">Cancel</button>
+          </div>
+        </form>
+        <ng-template #nothingToReceive>
+          <p class="text-muted">Every line on this order is already fully received.</p>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" (click)="closeModal()">Close</button>
+          </div>
+        </ng-template>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: RETURN GOODS -->
+  <div class="modal-backdrop" *ngIf="activeModal() === 'return'">
+    <div class="modal-container glass-card animate-modal wide-modal" *ngIf="selectedOrder() as order">
+      <div class="modal-header">
+        <h3>
+          <span class="material-symbols-outlined header-icon text-danger">assignment_return</span>
+          Return Goods to Vendor · {{ order.poNumber }}
+        </h3>
+        <button class="btn-close" (click)="closeModal()"><span class="material-symbols-outlined">close</span></button>
+      </div>
+
+      <div class="modal-body">
+        <p class="text-muted">Returned quantity leaves raw material stock and debits (reduces) the vendor payable.</p>
+
+        <div class="alert alert-danger" *ngIf="modalError() as error">
+          <span class="material-symbols-outlined">error</span><span>{{ error }}</span>
+        </div>
+        <div class="alert alert-success" *ngIf="modalSuccess() as success">
+          <span class="material-symbols-outlined">check_circle</span><span>{{ success }}</span>
+        </div>
+
+        <form (ngSubmit)="onSubmitReturn()" class="modal-form" *ngIf="returnForm.lines.length > 0; else nothingToReturn">
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Return Date</label>
+              <input type="date" name="returnDate" [(ngModel)]="returnForm.returnDate" />
+            </div>
+            <div class="form-group">
+              <label>Reason</label>
+              <select name="returnReason" [(ngModel)]="returnForm.reason">
+                <option *ngFor="let reason of returnReasons" [value]="reason">{{ reason }}</option>
+              </select>
+            </div>
+          </div>
+
+          <table class="nested-table">
+            <thead>
+              <tr>
+                <th>Raw Product</th>
+                <th class="text-right">Returnable</th>
+                <th class="text-right">Return Qty</th>
+                <th class="text-right">Rate</th>
+                <th class="text-right">Value</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let line of returnForm.lines; let i = index">
+                <td>{{ line.productName }} <span class="sub-text text-muted">({{ line.unitType }})</span></td>
+                <td class="text-right">{{ line.returnable }}</td>
+                <td class="text-right">
+                  <input type="number" class="inline-input" name="ret{{ i }}" [(ngModel)]="line.quantityReturned" min="0" max="{{ line.returnable }}" step="any" />
+                </td>
+                <td class="text-right">{{ money(line.unitRate) }}</td>
+                <td class="text-right">{{ money(line.quantityReturned * line.unitRate) }}</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div class="receipt-total">
+            <span class="text-muted">Return value (gross, before discount &amp; tax)</span>
+            <strong>{{ money(returnValue) }}</strong>
+          </div>
+
+          <div class="form-group">
+            <label>Remarks</label>
+            <input type="text" name="returnRemarks" [(ngModel)]="returnForm.remarks" />
+          </div>
+
+          <div class="modal-footer">
+            <button type="submit" class="btn btn-primary">
+              <span class="material-symbols-outlined">post_add</span><span>Post Purchase Return</span>
+            </button>
+            <button type="button" class="btn btn-secondary" (click)="closeModal()">Cancel</button>
+          </div>
+        </form>
+        <ng-template #nothingToReturn>
+          <p class="text-muted">Nothing received on this order can be returned.</p>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" (click)="closeModal()">Close</button>
+          </div>
+        </ng-template>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: CANCEL ORDER -->
+  <div class="modal-backdrop" *ngIf="activeModal() === 'cancel'">
+    <div class="modal-container glass-card animate-modal" *ngIf="selectedOrder() as order">
+      <div class="modal-header">
+        <h3>
+          <span class="material-symbols-outlined header-icon text-danger">cancel</span>
+          Cancel {{ order.poNumber }}
+        </h3>
+        <button class="btn-close" (click)="closeModal()"><span class="material-symbols-outlined">close</span></button>
+      </div>
+
+      <div class="modal-body">
+        <p class="text-muted">Orders with receipts or an outstanding balance cannot be cancelled — settle them first.</p>
+
+        <div class="alert alert-danger" *ngIf="modalError() as error">
+          <span class="material-symbols-outlined">error</span><span>{{ error }}</span>
+        </div>
+        <div class="alert alert-success" *ngIf="modalSuccess() as success">
+          <span class="material-symbols-outlined">check_circle</span><span>{{ success }}</span>
+        </div>
+
+        <div class="form-group">
+          <label>Cancellation Reason</label>
+          <textarea name="cancelReason" [(ngModel)]="cancelReason" rows="3" placeholder="e.g. Vendor unable to deliver before the event date"></textarea>
+        </div>
+
+        <div class="modal-footer">
+          <button class="btn btn-primary" (click)="onSubmitCancel()">
+            <span class="material-symbols-outlined">delete_forever</span><span>Cancel Order</span>
+          </button>
+          <button class="btn btn-secondary" (click)="closeModal()">Keep Order</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

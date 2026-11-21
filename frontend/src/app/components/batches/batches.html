@@ -1,0 +1,389 @@
+<div class="page-container">
+  <!-- Page Header -->
+  <div class="page-header">
+    <div class="header-details">
+      <h2>Batch Production & Management</h2>
+      <p class="text-muted">Record production runs, deduct raw inventory, and reconcile batch variations.</p>
+    </div>
+    
+    <!-- Tab Controls -->
+    <div class="tab-controls">
+      <button 
+        class="tab-btn" 
+        [class.active]="activeTab() === 'list'" 
+        (click)="activeTab.set('list')">
+        <span class="material-symbols-outlined">list</span>
+        <span>Active Batches</span>
+      </button>
+      <button 
+        class="tab-btn" 
+        [class.active]="activeTab() === 'create'" 
+        (click)="activeTab.set('create')">
+        <span class="material-symbols-outlined">precision_manufacturing</span>
+        <span>Produce New Batch</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Loading State -->
+  <div class="flex-center loading-state" *ngIf="isLoading()">
+    <span class="spinner"></span>
+    <span style="margin-left: 10px;">Loading batches configuration...</span>
+  </div>
+
+  <!-- Main Content -->
+  <div class="tab-content" *ngIf="!isLoading()">
+    <!-- TAB: LIST -->
+    <div class="tab-pane" *ngIf="activeTab() === 'list'">
+      <!-- Filter Bar -->
+      <div class="filter-bar glass-card">
+        <div class="search-box">
+          <span class="material-symbols-outlined search-icon">search</span>
+          <input 
+            type="text" 
+            [(ngModel)]="searchTerm" 
+            placeholder="Search batches by batch number or finished product..." 
+          />
+        </div>
+      </div>
+
+      <!-- Batches Table -->
+      <div class="table-container glass-card">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Batch Number</th>
+              <th>Finished Product</th>
+              <th class="text-right">Quantity Produced</th>
+              <th>Creation Date</th>
+              <th>Time</th>
+              <th>Created By</th>
+              <th class="text-center">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngIf="filteredBatches.length === 0">
+              <td colspan="7" class="text-center text-muted">No active batches recorded.</td>
+            </tr>
+            <tr *ngFor="let b of filteredBatches">
+              <td class="font-bold text-accent">{{ b.batchNumber }}</td>
+              <td>{{ b.finishedProduct?.name }}</td>
+              <td class="text-right font-bold">{{ b.quantity }} units</td>
+              <td>{{ b.creationDate }}</td>
+              <td>{{ b.creationTime }}</td>
+              <td>{{ b.creator?.username }}</td>
+              <td class="text-center actions-cell">
+                <button class="action-btn btn-view" (click)="openModal(b.id, 'detail')" title="View Composition">
+                  <span class="material-symbols-outlined">visibility</span>
+                  <span>View</span>
+                </button>
+                <button class="action-btn btn-edit" (click)="openModal(b.id, 'edit')" title="Edit Batch">
+                  <span class="material-symbols-outlined">edit</span>
+                </button>
+                <button class="action-btn btn-stock-out" (click)="openModal(b.id, 'delete')" title="Delete Batch">
+                  <span class="material-symbols-outlined">delete</span>
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- TAB: CREATE -->
+    <div class="tab-pane" *ngIf="activeTab() === 'create'">
+      <div class="batch-creation-grid">
+        <!-- Left: Batch Info -->
+        <div class="glass-card flex-form-panel">
+          <h3>Batch Information</h3>
+          <p class="text-muted" style="margin-bottom: 20px;">Define product and batch size.</p>
+
+          <form (ngSubmit)="onSubmitCreate()" class="batch-form">
+            <div class="form-group">
+              <label for="finSelect">Target Finished Product *</label>
+              <select id="finSelect" [(ngModel)]="selectedFinishedProductId" name="finishedProductId" required>
+                <option [ngValue]="null">-- Select Finished Product --</option>
+                <option *ngFor="let fp of finishedProducts()" [value]="fp.id">{{ fp.name }}</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="batchQty">Quantity Produced *</label>
+              <input 
+                type="number" 
+                id="batchQty" 
+                [(ngModel)]="quantityProduced" 
+                name="quantity" 
+                min="1" 
+                placeholder="e.g. 50" 
+                required 
+              />
+            </div>
+
+            <div class="batch-summary-panel" *ngIf="selectedFinishedProductId && quantityProduced > 0">
+              <p class="text-muted">Production Preview</p>
+              <h4>Produce {{ quantityProduced }} Units of <strong>{{ getFinishedProductName(selectedFinishedProductId) }}</strong></h4>
+            </div>
+
+            <div class="form-actions" style="margin-top: 20px;">
+              <button type="submit" class="btn btn-primary" [disabled]="quantityProduced <= 0 || !selectedFinishedProductId">
+                <span class="material-symbols-outlined">save</span>
+                <span>Save Production Run</span>
+              </button>
+              <button type="button" class="btn btn-secondary" (click)="activeTab.set('list')">Cancel</button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Right: Raw Materials Selection -->
+        <div class="glass-card flex-form-panel">
+          <h3>Raw Materials Consumed</h3>
+          <p class="text-muted" style="margin-bottom: 12px;">Select the ingredients and materials consumed during this production run.</p>
+
+          <div class="raw-selection-list">
+            <div 
+              class="raw-selection-row" 
+              *ngFor="let item of rawUsageInputs; let idx = index"
+              [class.selected-row]="item.isSelected"
+            >
+              <div class="selection-checkbox">
+                <input 
+                  type="checkbox" 
+                  [id]="'check-' + idx" 
+                  [checked]="item.isSelected" 
+                  (change)="toggleRawSelection(idx)" 
+                />
+              </div>
+              <div class="selection-details">
+                <label [for]="'check-' + idx" class="raw-name">{{ item.name }}</label>
+                <span class="stock-indicator" [class.text-danger]="item.availableStock === 0">
+                  Stock: {{ item.availableStock }} {{ item.unitType }}
+                </span>
+              </div>
+              <div class="selection-input" *ngIf="item.isSelected">
+                <input 
+                  type="number" 
+                  [(ngModel)]="item.quantityUsed" 
+                  [placeholder]="'Qty (' + item.unitType + ')'"
+                  min="0.1" 
+                  step="any"
+                  [max]="item.availableStock"
+                  [class.input-error]="item.quantityUsed > item.availableStock"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- OVERLAYS MODALS -->
+  <div class="modal-backdrop" *ngIf="activeModal()">
+    <!-- DETAIL MODAL -->
+    <div class="modal-container glass-card animate-modal" *ngIf="activeModal() === 'detail' && detailedBatch() as b">
+      <div class="modal-header">
+        <h3>
+          <span class="material-symbols-outlined header-icon text-accent">receipt_long</span>
+          <span>Batch Production Details</span>
+        </h3>
+        <button class="btn-close" (click)="closeModal()">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <div class="batch-details-grid">
+          <div class="detail-cell">
+            <p class="text-muted">Batch Number</p>
+            <h4 class="text-accent">{{ b.batchNumber }}</h4>
+          </div>
+          <div class="detail-cell">
+            <p class="text-muted">Finished Product</p>
+            <h4>{{ b.finishedProduct?.name }}</h4>
+          </div>
+          <div class="detail-cell">
+            <p class="text-muted">Quantity Produced</p>
+            <h4>{{ b.quantity }} units</h4>
+          </div>
+          <div class="detail-cell">
+            <p class="text-muted">Creation Date & Time</p>
+            <h4>{{ b.creationDate }} {{ b.creationTime }}</h4>
+          </div>
+          <div class="detail-cell">
+            <p class="text-muted">Created By</p>
+            <h4>{{ b.creator?.username }}</h4>
+          </div>
+        </div>
+
+        <h4 style="margin-top: 16px; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">Raw Materials Consumed</h4>
+
+        <table class="modal-data-table">
+          <thead>
+            <tr>
+              <th>Raw Product</th>
+              <th class="text-right">Quantity Used</th>
+              <th>Unit Type</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let rc of b.rawProductsConsumed">
+              <td class="font-bold">{{ rc.rawProduct?.name }}</td>
+              <td class="text-right">{{ rc.quantityUsed }}</td>
+              <td>{{ rc.rawProduct?.unitType }}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="modal-footer">
+          <button class="btn btn-secondary" (click)="closeModal()">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- EDIT MODAL -->
+    <div class="modal-container glass-card animate-modal modal-large" *ngIf="activeModal() === 'edit' && detailedBatch() as b">
+      <div class="modal-header">
+        <h3>
+          <span class="material-symbols-outlined header-icon text-accent">edit</span>
+          <span>Edit & Reconcile Batch: {{ b.batchNumber }}</span>
+        </h3>
+        <button class="btn-close" (click)="closeModal()">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <div class="alert alert-danger" *ngIf="modalError() as error">
+          <span class="material-symbols-outlined">error</span>
+          <span>{{ error }}</span>
+        </div>
+        <div class="alert alert-success" *ngIf="modalSuccess() as success">
+          <span class="material-symbols-outlined">check_circle</span>
+          <span>{{ success }}</span>
+        </div>
+
+        <div class="edit-batch-layout">
+          <!-- Left fields -->
+          <div class="edit-left">
+            <div class="form-group">
+              <label for="editFin">Target Finished Product *</label>
+              <select id="editFin" [(ngModel)]="editFinishedProductId" name="editFinishedProductId">
+                <option *ngFor="let fp of finishedProducts()" [value]="fp.id">{{ fp.name }}</option>
+              </select>
+            </div>
+            
+            <div class="form-group" style="margin-top: 16px;">
+              <label for="editQty">Quantity Produced *</label>
+              <input type="number" id="editQty" [(ngModel)]="editQuantityProduced" name="editQuantityProduced" min="1" />
+            </div>
+
+            <div class="reconciliation-tip text-muted">
+              <span class="material-symbols-outlined">info</span>
+              <p>Reconciler will automatically calculate stock difference and refund/deduct items accordingly.</p>
+            </div>
+          </div>
+
+          <!-- Right lists -->
+          <div class="edit-right">
+            <h4 style="margin-bottom: 8px;">Select Raw Materials Consumed</h4>
+            <div class="raw-selection-list list-small">
+              <div 
+                class="raw-selection-row" 
+                *ngFor="let item of editRawUsageInputs; let idx = index"
+                [class.selected-row]="item.isSelected"
+              >
+                <div class="selection-checkbox">
+                  <input 
+                    type="checkbox" 
+                    [id]="'edit-check-' + idx" 
+                    [checked]="item.isSelected" 
+                    (change)="toggleRawSelection(idx, true)" 
+                  />
+                </div>
+                <div class="selection-details">
+                  <label [for]="'edit-check-' + idx" class="raw-name">{{ item.name }}</label>
+                  <span class="stock-indicator">
+                    Max Available limit: {{ item.availableStock }} {{ item.unitType }}
+                  </span>
+                </div>
+                <div class="selection-input" *ngIf="item.isSelected">
+                  <input 
+                    type="number" 
+                    [(ngModel)]="item.quantityUsed" 
+                    min="0.1" 
+                    step="any"
+                    [max]="item.availableStock"
+                    [class.input-error]="item.quantityUsed > item.availableStock"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button class="btn btn-primary" (click)="onSubmitEdit()">Reconcile & Save</button>
+          <button class="btn btn-secondary" (click)="closeModal()">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- SOFT DELETE CONFIRM MODAL -->
+    <div class="modal-container glass-card animate-modal" *ngIf="activeModal() === 'delete' && detailedBatch() as b">
+      <div class="modal-header">
+        <h3 class="text-danger">
+          <span class="material-symbols-outlined header-icon">warning</span>
+          <span>Soft Delete Batch</span>
+        </h3>
+        <button class="btn-close" (click)="closeModal()">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <div class="alert alert-danger" *ngIf="modalError() as error">
+          <span class="material-symbols-outlined">error</span>
+          <span>{{ error }}</span>
+        </div>
+        <div class="alert alert-success" *ngIf="modalSuccess() as success">
+          <span class="material-symbols-outlined">check_circle</span>
+          <span>{{ success }}</span>
+        </div>
+
+        <div class="delete-warning-banner">
+          <p>Are you sure you want to delete batch <strong>{{ b.batchNumber }}</strong>?</p>
+          <p class="text-muted" style="margin-top: 8px;">This is a soft-delete operation. The system will:</p>
+          <ul class="reversal-list">
+            <li>Mark the batch as Deleted.</li>
+            <li>Automatically return all consumed raw products back to current stock.</li>
+            <li>Generate auditable Batch Reversal ledger logs.</li>
+          </ul>
+        </div>
+
+        <table class="modal-data-table" style="margin-top: 16px;">
+          <thead>
+            <tr>
+              <th>Raw Product</th>
+              <th class="text-right">Quantity to Return</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let rc of b.rawProductsConsumed">
+              <td class="font-bold">{{ rc.rawProduct?.name }}</td>
+              <td class="text-right text-success font-bold">+{{ rc.quantityUsed }} {{ rc.rawProduct?.unitType }}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="modal-footer" style="margin-top: 20px;">
+          <button class="btn btn-danger" (click)="onConfirmDelete()">
+            <span class="material-symbols-outlined">delete</span>
+            <span>Confirm Deletion</span>
+          </button>
+          <button class="btn btn-secondary" (click)="closeModal()">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

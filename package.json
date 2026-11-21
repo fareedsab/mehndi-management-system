@@ -1,0 +1,35 @@
+{
+  "name": "mehndi-business-management-system",
+  "version": "1.0.0",
+  "description": "Mehndi Business Management System - Inventory Management Module",
+  "main": "main.js",
+  "scripts": {
+    "postinstall": "npm run install:backend && npm run install:frontend",
+    "install:backend": "cd backend && npm install",
+    "install:frontend": "cd frontend && npm install",
+    "backend": "cd backend && npm start",
+    "frontend": "cd frontend && npm start",
+    "frontend:build": "cd frontend && npm run build",
+    "electron": "electron .",
+    "public": "concurrently -k -n \"API,Tunnel\" -c \"yellow,cyan\" \"node backend/server.js\" \"cloudflared tunnel --no-autoupdate --url http://localhost:3001\"",
+    "dev": "concurrently -k -p \"[{name}]\" -n \"Backend,Frontend,Electron\" -c \"yellow.bold,cyan.bold,green.bold\" \"npm run backend\" \"npm run frontend\" \"wait-on http://localhost:4200 && electron .\"",
+    "start": "npm run dev"
+  },
+  "keywords": [
+    "mehndi",
+    "inventory",
+    "management",
+    "electron",
+    "angular",
+    "express"
+  ],
+  "author": "Antigravity",
+  "license": "ISC",
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "wait-on": "^7.2.0"
+  },
+  "dependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

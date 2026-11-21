@@ -1,0 +1,589 @@
+<div class="page-container">
+  <!-- Page Header -->
+  <div class="page-header">
+    <div class="header-details">
+      <h2>Reports &amp; Audit Logs</h2>
+      <p class="text-muted">Production and consumption analysis, stock ledgers, purchase order register and vendor payable ageing.</p>
+    </div>
+    
+    <!-- Tab Controls -->
+    <div class="tab-controls">
+      <button 
+        class="tab-btn" 
+        [class.active]="activeTab() === 'production'" 
+        (click)="activeTab.set('production')">
+        <span class="material-symbols-outlined">analytics</span>
+        <span>Production Report</span>
+      </button>
+      <button 
+        class="tab-btn" 
+        [class.active]="activeTab() === 'consumption'" 
+        (click)="activeTab.set('consumption')">
+        <span class="material-symbols-outlined">query_stats</span>
+        <span>Consumption Report</span>
+      </button>
+      <button 
+        class="tab-btn" 
+        [class.active]="activeTab() === 'ledger'" 
+        (click)="activeTab.set('ledger')">
+        <span class="material-symbols-outlined">receipt_long</span>
+        <span>Inventory Ledger</span>
+      </button>
+      <button
+        class="tab-btn"
+        [class.active]="activeTab() === 'po-summary'"
+        (click)="activeTab.set('po-summary')">
+        <span class="material-symbols-outlined">request_quote</span>
+        <span>Purchase Orders</span>
+      </button>
+      <button
+        class="tab-btn"
+        [class.active]="activeTab() === 'vendor-balances'"
+        (click)="activeTab.set('vendor-balances')">
+        <span class="material-symbols-outlined">credit_score</span>
+        <span>Vendor Balances</span>
+      </button>
+      <button
+        class="tab-btn"
+        [class.active]="activeTab() === 'purchase-summary'"
+        (click)="activeTab.set('purchase-summary')">
+        <span class="material-symbols-outlined">summarize</span>
+        <span>Purchase Summary</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Loading State -->
+  <div class="flex-center loading-state" *ngIf="isLoading()">
+    <span class="spinner"></span>
+    <span style="margin-left: 10px;">Loading reports...</span>
+  </div>
+
+  <div class="reports-body" *ngIf="!isLoading()">
+    <!-- TAB: PRODUCTION -->
+    <div class="tab-pane" *ngIf="activeTab() === 'production'">
+      <!-- Filters Panel -->
+      <div class="filter-panel glass-card">
+        <form (ngSubmit)="runProductionReport()" class="filter-form">
+          <div class="filter-grid">
+            <div class="form-group">
+              <label>Start Date</label>
+              <input type="date" [(ngModel)]="prodFilters.startDate" name="startDate" />
+            </div>
+            <div class="form-group">
+              <label>End Date</label>
+              <input type="date" [(ngModel)]="prodFilters.endDate" name="endDate" />
+            </div>
+            <div class="form-group">
+              <label>Finished Product</label>
+              <select [(ngModel)]="prodFilters.finishedProductId" name="finishedProductId">
+                <option value="">-- All Products --</option>
+                <option *ngFor="let fp of finishedProducts()" [value]="fp.id">{{ fp.name }}</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Batch Number</label>
+              <input type="text" [(ngModel)]="prodFilters.batchNumber" name="batchNumber" placeholder="e.g. B-2026" />
+            </div>
+          </div>
+          <div class="filter-actions">
+            <button type="submit" class="btn btn-primary">
+              <span class="material-symbols-outlined">filter_alt</span>
+              <span>Generate Report</span>
+            </button>
+            <button type="button" class="btn btn-secondary" (click)="clearProdFilters()">Clear Filters</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Results Grid -->
+      <div class="table-container glass-card" style="margin-top: 20px;">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Batch Number</th>
+              <th>Finished Product Name</th>
+              <th class="text-right">Quantity Produced</th>
+              <th>Production Date</th>
+              <th>Time</th>
+              <th>Recorded By</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngIf="productionResults().length === 0">
+              <td colspan="6" class="text-center text-muted">No production records found matching filters.</td>
+            </tr>
+            <tr *ngFor="let b of productionResults()">
+              <td class="font-bold text-accent">{{ b.batchNumber }}</td>
+              <td>{{ b.finishedProduct?.name }}</td>
+              <td class="text-right font-bold">{{ b.quantity }} units</td>
+              <td>{{ b.creationDate }}</td>
+              <td>{{ b.creationTime }}</td>
+              <td>{{ b.creator?.username }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- TAB: CONSUMPTION -->
+    <div class="tab-pane" *ngIf="activeTab() === 'consumption'">
+      <!-- Filters Panel -->
+      <div class="filter-panel glass-card">
+        <form (ngSubmit)="runConsumptionReport()" class="filter-form">
+          <div class="filter-grid">
+            <div class="form-group">
+              <label>Start Date</label>
+              <input type="date" [(ngModel)]="consFilters.startDate" name="startDate" />
+            </div>
+            <div class="form-group">
+              <label>End Date</label>
+              <input type="date" [(ngModel)]="consFilters.endDate" name="endDate" />
+            </div>
+            <div class="form-group">
+              <label>Raw Product</label>
+              <select [(ngModel)]="consFilters.rawProductId" name="rawProductId">
+                <option value="">-- All Materials --</option>
+                <option *ngFor="let rp of rawProducts()" [value]="rp.id">{{ rp.name }}</option>
+              </select>
+            </div>
+          </div>
+          <div class="filter-actions">
+            <button type="submit" class="btn btn-primary">
+              <span class="material-symbols-outlined">filter_alt</span>
+              <span>Generate Report</span>
+            </button>
+            <button type="button" class="btn btn-secondary" (click)="clearConsFilters()">Clear Filters</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Results Grid -->
+      <div class="table-container glass-card" style="margin-top: 20px;">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Raw Product Name</th>
+              <th>Unit Type</th>
+              <th class="text-right">Quantity Consumed</th>
+              <th class="text-right">Quantity Returned</th>
+              <th class="text-right">Net Consumption</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngIf="consumptionResults().length === 0">
+              <td colspan="5" class="text-center text-muted">No material usage records found.</td>
+            </tr>
+            <tr *ngFor="let c of consumptionResults()">
+              <td class="font-bold">{{ c.productName }}</td>
+              <td>{{ c.unitType }}</td>
+              <td class="text-right text-danger font-bold">-{{ c.quantityConsumed }}</td>
+              <td class="text-right text-success font-bold">+{{ c.quantityReturned }}</td>
+              <td class="text-right font-bold" [class.text-danger]="c.netConsumption > 0" [class.text-success]="c.netConsumption === 0">
+                {{ c.netConsumption > 0 ? '-' : '' }}{{ c.netConsumption }}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- TAB: LEDGER -->
+    <div class="tab-pane" *ngIf="activeTab() === 'ledger'">
+      <!-- Filters Panel -->
+      <div class="filter-panel glass-card">
+        <form (ngSubmit)="runLedgerReport()" class="filter-form">
+          <div class="filter-grid">
+            <div class="form-group">
+              <label>Target Raw Product *</label>
+              <select [(ngModel)]="ledFilters.rawProductId" name="rawProductId" required (change)="runLedgerReport()">
+                <option *ngFor="let rp of rawProducts()" [value]="rp.id">{{ rp.name }}</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Start Date</label>
+              <input type="date" [(ngModel)]="ledFilters.startDate" name="startDate" />
+            </div>
+            <div class="form-group">
+              <label>End Date</label>
+              <input type="date" [(ngModel)]="ledFilters.endDate" name="endDate" />
+            </div>
+          </div>
+          <div class="filter-actions">
+            <button type="submit" class="btn btn-primary">
+              <span class="material-symbols-outlined">filter_alt</span>
+              <span>Generate Ledger</span>
+            </button>
+            <button type="button" class="btn btn-secondary" (click)="clearLedFilters()">Clear Filters</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Current Stock Information Banner -->
+      <div class="ledger-summary-banner glass-card" *ngIf="ledFilters.rawProductId">
+        <div class="banner-left" *ngIf="getSelectedRawProduct() as rp">
+          <p class="text-muted">Selected Product Catalog Metadata</p>
+          <h3>{{ rp.name }} <span class="unit-badge">({{ rp.unitType }})</span></h3>
+          <p class="summary-limits">Current Available Stock: <strong>{{ rp.currentStock }}</strong> {{ rp.unitType }} | Minimum stock alert boundary: {{ rp.minimumStockLevel }}</p>
+        </div>
+      </div>
+
+      <!-- Results Grid -->
+      <div class="table-container glass-card" style="margin-top: 20px;">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Tx ID</th>
+              <th>Timestamp</th>
+              <th>Transaction Type</th>
+              <th class="text-right">Quantity Change</th>
+              <th class="text-right">Previous Stock</th>
+              <th class="text-right">New Stock</th>
+              <th>Ref / Invoice</th>
+              <th>Remarks</th>
+              <th>Operator</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngIf="ledgerResults().length === 0">
+              <td colspan="9" class="text-center text-muted">No stock ledger transactions recorded for this product.</td>
+            </tr>
+            <tr *ngFor="let t of ledgerResults()">
+              <td>#{{ t.id }}</td>
+              <td class="text-muted">{{ t.createdAt | date:'yyyy-MM-dd HH:mm:ss' }}</td>
+              <td>
+                <span class="badge" 
+                  [class.badge-success]="t.transactionType === 'Stock In' || t.transactionType === 'Batch Reversal'"
+                  [class.badge-danger]="t.transactionType === 'Stock Out' || t.transactionType === 'Batch Creation'"
+                  [class.badge-warning]="t.transactionType === 'Batch Update'">
+                  {{ t.transactionType }}
+                </span>
+              </td>
+              <td class="text-right font-bold" 
+                [class.text-success]="t.newStock > t.previousStock" 
+                [class.text-danger]="t.newStock < t.previousStock">
+                {{ t.newStock > t.previousStock ? '+' : '-' }}{{ t.quantity }}
+              </td>
+              <td class="text-right text-muted">{{ t.previousStock }}</td>
+              <td class="text-right font-bold">{{ t.newStock }}</td>
+              <td class="font-bold text-accent">{{ t.purchaseReference || t.reason || t.referenceId }}</td>
+              <td class="text-muted" style="max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" [title]="t.remarks">{{ t.remarks }}</td>
+              <td>{{ t.user?.username }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- TAB: PURCHASE ORDER REGISTER -->
+    <div class="tab-pane" *ngIf="activeTab() === 'po-summary'">
+      <div class="summary-cards">
+        <div class="mini-card glass-card">
+          <span class="text-muted card-label">Orders</span>
+          <h4>{{ purchaseOrderReport().summary.totalOrders || 0 }}</h4>
+          <p class="text-muted sub">
+            {{ purchaseOrderReport().summary.draft || 0 }} draft ·
+            {{ purchaseOrderReport().summary.ordered || 0 }} ordered ·
+            {{ purchaseOrderReport().summary.received || 0 }} received
+          </p>
+        </div>
+        <div class="mini-card glass-card">
+          <span class="text-muted card-label">Order Value</span>
+          <h4>{{ money(purchaseOrderReport().summary.orderValue) }}</h4>
+          <p class="text-muted sub">Billed so far {{ money(purchaseOrderReport().summary.billedValue) }}</p>
+        </div>
+        <div class="mini-card glass-card">
+          <span class="text-muted card-label">Outstanding Payable</span>
+          <h4 class="text-danger">{{ money(purchaseOrderReport().summary.totalOutstanding) }}</h4>
+          <p class="text-muted sub">Across {{ purchaseOrderReport().summary.unpaidOrders || 0 }} unpaid orders</p>
+        </div>
+        <div class="mini-card glass-card">
+          <span class="text-muted card-label">Open Orders</span>
+          <h4>{{ purchaseOrderReport().summary.openOrders || 0 }}</h4>
+          <p class="text-muted sub">Not fully received yet</p>
+        </div>
+      </div>
+
+      <div class="filter-panel glass-card">
+        <form (ngSubmit)="runPurchaseOrderReport()" class="filter-form">
+          <div class="filter-grid">
+            <div class="form-group">
+              <label>Start Date</label>
+              <input type="date" [(ngModel)]="poFilters.startDate" name="poStartDate" />
+            </div>
+            <div class="form-group">
+              <label>End Date</label>
+              <input type="date" [(ngModel)]="poFilters.endDate" name="poEndDate" />
+            </div>
+            <div class="form-group">
+              <label>Vendor</label>
+              <select [(ngModel)]="poFilters.vendorId" name="poVendorId">
+                <option value="">-- All Vendors --</option>
+                <option *ngFor="let v of vendors()" [value]="v.id">{{ v.name }}</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Status</label>
+              <select [(ngModel)]="poFilters.status" name="poStatus">
+                <option value="">-- All Statuses --</option>
+                <option value="Draft">Draft</option>
+                <option value="Ordered">Ordered</option>
+                <option value="Partially Received">Partially Received</option>
+                <option value="Received">Received</option>
+                <option value="Cancelled">Cancelled</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>PO Number</label>
+              <input type="text" [(ngModel)]="poFilters.search" name="poSearch" placeholder="e.g. PO-2026" />
+            </div>
+          </div>
+          <div class="filter-actions">
+            <button type="submit" class="btn btn-primary">
+              <span class="material-symbols-outlined">filter_alt</span>
+              <span>Generate Report</span>
+            </button>
+            <button type="button" class="btn btn-secondary" (click)="clearPoFilters()">Clear Filters</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="table-container glass-card" style="margin-top: 20px;">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>PO Number</th>
+              <th>Vendor</th>
+              <th>Order Date</th>
+              <th>Products</th>
+              <th class="text-right">Qty Ordered</th>
+              <th class="text-right">Qty Received</th>
+              <th class="text-right">Order Value</th>
+              <th class="text-right">Billed</th>
+              <th class="text-right">Outstanding</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngIf="purchaseOrderReport().rows?.length === 0">
+              <td colspan="10" class="text-center text-muted">No purchase orders found for this selection.</td>
+            </tr>
+            <tr *ngFor="let row of purchaseOrderReport().rows">
+              <td class="font-bold text-accent">{{ row.poNumber }}</td>
+              <td>{{ row.vendorName }}</td>
+              <td class="text-muted">{{ row.orderDate }}</td>
+              <td class="text-muted sub" style="max-width: 240px;">{{ joinNames(row.productNames) }}</td>
+              <td class="text-right">{{ row.quantityOrdered }}</td>
+              <td class="text-right">{{ row.quantityReceived }} ({{ row.receivedPercent }}%)</td>
+              <td class="text-right font-bold">{{ money(row.orderValue) }}</td>
+              <td class="text-right">{{ money(row.billedValue) }}</td>
+              <td class="text-right font-bold" [class.text-danger]="row.outstanding > 0">{{ money(row.outstanding) }}</td>
+              <td>
+                <span class="badge"
+                  [class.badge-success]="row.status === 'Received'"
+                  [class.badge-danger]="row.status === 'Cancelled'"
+                  [class.badge-warning]="row.status === 'Ordered' || row.status === 'Partially Received'">
+                  {{ row.status }}
+                </span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- TAB: VENDOR BALANCES & AGEING -->
+    <div class="tab-pane" *ngIf="activeTab() === 'vendor-balances'">
+      <div class="summary-cards">
+        <div class="mini-card glass-card">
+          <span class="text-muted card-label">Total Purchases On Book</span>
+          <h4>{{ money(vendorBalances().totals.totalPurchases) }}</h4>
+        </div>
+        <div class="mini-card glass-card">
+          <span class="text-muted card-label">Total Settled</span>
+          <h4 class="text-success">{{ money(vendorBalances().totals.totalPaid) }}</h4>
+        </div>
+        <div class="mini-card glass-card">
+          <span class="text-muted card-label">Net Payable</span>
+          <h4 class="text-danger">{{ money(vendorBalances().totals.totalPayable) }}</h4>
+        </div>
+        <div class="mini-card glass-card">
+          <span class="text-muted card-label">Overdue Payable</span>
+          <h4 class="text-danger">{{ money(vendorBalances().totals.totalOverdue) }}</h4>
+          <p class="text-muted sub">{{ vendorBalances().totals.vendorsOverLimit || 0 }} vendors beyond credit limit</p>
+        </div>
+      </div>
+
+      <div class="table-container glass-card">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Vendor</th>
+              <th class="text-right">Opening</th>
+              <th class="text-right">Credits</th>
+              <th class="text-right">Debits</th>
+              <th class="text-right">Payable</th>
+              <th class="text-right">Limit</th>
+              <th class="text-right">Available</th>
+              <th>Ageing (Not due / 1-30 / 31-60 / 61-90 / 90+)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngIf="vendorBalances().rows?.length === 0">
+              <td colspan="8" class="text-center text-muted">No vendors configured.</td>
+            </tr>
+            <tr *ngFor="let row of vendorBalances().rows" [class.row-alert]="row.overLimit">
+              <td>
+                <div class="font-bold">{{ row.name }}</div>
+                <div class="text-muted sub">{{ row.code || '—' }} · {{ row.paymentTermsDays }} days · {{ row.openOrders }} open orders</div>
+              </td>
+              <td class="text-right text-muted">{{ money(row.openingBalance) }}</td>
+              <td class="text-right">{{ money(row.totalPurchases) }}</td>
+              <td class="text-right text-success">{{ money(row.totalPaid) }}</td>
+              <td class="text-right font-bold" [class.text-danger]="row.payableBalance > 0">{{ money(row.payableBalance) }}</td>
+              <td class="text-right">{{ row.creditLimit > 0 ? money(row.creditLimit) : 'No limit' }}</td>
+              <td class="text-right" [class.text-danger]="row.overLimit">
+                {{ row.availableCredit === null ? 'Unlimited' : money(row.availableCredit) }}
+              </td>
+              <td>
+                <div class="aging-bar">
+                  <span class="aging-seg not-due" [style.width.%]="agingPercent(row, 'notDue')"></span>
+                  <span class="aging-seg d1" [style.width.%]="agingPercent(row, 'd1to30')"></span>
+                  <span class="aging-seg d2" [style.width.%]="agingPercent(row, 'd31to60')"></span>
+                  <span class="aging-seg d3" [style.width.%]="agingPercent(row, 'd61to90')"></span>
+                  <span class="aging-seg d4" [style.width.%]="agingPercent(row, 'd90Plus')"></span>
+                </div>
+                <div class="text-muted sub">
+                  {{ money(row.aging.notDue) }} / {{ money(row.aging.d1to30) }} / {{ money(row.aging.d31to60) }} / {{ money(row.aging.d61to90) }} / {{ money(row.aging.d90Plus) }}
+                  <span *ngIf="row.oldestOverdueDays > 0" class="text-danger">· {{ money(overdueOf(row)) }} overdue (oldest {{ row.oldestOverdueDays }}d)</span>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- TAB: PURCHASE SUMMARY -->
+    <div class="tab-pane" *ngIf="activeTab() === 'purchase-summary'">
+      <div class="summary-cards">
+        <div class="mini-card glass-card">
+          <span class="text-muted card-label">Orders In Period</span>
+          <h4>{{ purchaseSummary().totals.orders || 0 }}</h4>
+          <p class="text-muted sub">{{ purchaseSummary().totals.productsPurchased || 0 }} distinct raw materials</p>
+        </div>
+        <div class="mini-card glass-card">
+          <span class="text-muted card-label">Ordered Value</span>
+          <h4>{{ money(purchaseSummary().totals.orderedValue) }}</h4>
+        </div>
+        <div class="mini-card glass-card">
+          <span class="text-muted card-label">Received Value (after discount &amp; tax)</span>
+          <h4 class="text-success">{{ money(purchaseSummary().totals.receivedValue) }}</h4>
+        </div>
+        <div class="mini-card glass-card">
+          <span class="text-muted card-label">Returned Value</span>
+          <h4 class="text-danger">{{ money(purchaseSummary().totals.returnedValue) }}</h4>
+        </div>
+      </div>
+
+      <div class="filter-panel glass-card">
+        <form (ngSubmit)="runPurchaseSummary()" class="filter-form">
+          <div class="filter-grid">
+            <div class="form-group">
+              <label>Start Date</label>
+              <input type="date" [(ngModel)]="psFilters.startDate" name="psStartDate" />
+            </div>
+            <div class="form-group">
+              <label>End Date</label>
+              <input type="date" [(ngModel)]="psFilters.endDate" name="psEndDate" />
+            </div>
+            <div class="form-group">
+              <label>Vendor</label>
+              <select [(ngModel)]="psFilters.vendorId" name="psVendorId">
+                <option value="">-- All Vendors --</option>
+                <option *ngFor="let v of vendors()" [value]="v.id">{{ v.name }}</option>
+              </select>
+            </div>
+          </div>
+          <div class="filter-actions">
+            <button type="submit" class="btn btn-primary">
+              <span class="material-symbols-outlined">filter_alt</span>
+              <span>Generate Report</span>
+            </button>
+            <button type="button" class="btn btn-secondary" (click)="clearPsFilters()">Clear Filters</button>
+            <div class="view-switch">
+              <button type="button" class="chip" [class.active]="summaryView() === 'product'" (click)="summaryView.set('product')">By Product</button>
+              <button type="button" class="chip" [class.active]="summaryView() === 'vendor'" (click)="summaryView.set('vendor')">By Vendor</button>
+            </div>
+          </div>
+        </form>
+      </div>
+
+      <div class="table-container glass-card" style="margin-top: 20px;" *ngIf="summaryView() === 'product'">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Raw Product</th>
+              <th>Unit</th>
+              <th class="text-right">Times Ordered</th>
+              <th class="text-right">Qty Ordered</th>
+              <th class="text-right">Ordered Value</th>
+              <th class="text-right">Qty Received</th>
+              <th class="text-right">Received Value</th>
+              <th class="text-right">Avg Net Rate</th>
+              <th class="text-right">Qty Returned</th>
+              <th>Vendors</th>
+              <th>Last Order</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngIf="purchaseSummary().byProduct?.length === 0">
+              <td colspan="11" class="text-center text-muted">Nothing purchased in this period.</td>
+            </tr>
+            <tr *ngFor="let row of purchaseSummary().byProduct">
+              <td class="font-bold">{{ row.productName }}</td>
+              <td class="text-muted">{{ row.unitType }}</td>
+              <td class="text-right">{{ row.timesOrdered }}</td>
+              <td class="text-right">{{ row.qtyOrdered }}</td>
+              <td class="text-right">{{ money(row.orderedValue) }}</td>
+              <td class="text-right text-success font-bold">{{ row.qtyReceived }}</td>
+              <td class="text-right font-bold">{{ money(row.receivedValue) }}</td>
+              <td class="text-right">{{ money(row.averageNetRate) }}</td>
+              <td class="text-right" [class.text-danger]="row.qtyReturned > 0">{{ row.qtyReturned }}</td>
+              <td class="text-muted sub">{{ joinNames(row.vendorNames) }}</td>
+              <td class="text-muted sub">{{ row.lastOrderDate }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="table-container glass-card" style="margin-top: 20px;" *ngIf="summaryView() === 'vendor'">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Vendor</th>
+              <th class="text-right">Orders</th>
+              <th class="text-right">Order Value (gross)</th>
+              <th class="text-right">Received Value (net)</th>
+              <th class="text-right">Returned Value (net)</th>
+              <th class="text-right">Net Purchased</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngIf="purchaseSummary().byVendor?.length === 0">
+              <td colspan="6" class="text-center text-muted">No vendor purchases in this period.</td>
+            </tr>
+            <tr *ngFor="let row of purchaseSummary().byVendor">
+              <td class="font-bold">{{ row.vendorName }}</td>
+              <td class="text-right">{{ row.orders }}</td>
+              <td class="text-right">{{ money(row.orderValue) }}</td>
+              <td class="text-right text-success">{{ money(row.receivedValue) }}</td>
+              <td class="text-right" [class.text-danger]="row.returnedValue > 0">{{ money(row.returnedValue) }}</td>
+              <td class="text-right font-bold">{{ money(row.receivedValue - row.returnedValue) }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>

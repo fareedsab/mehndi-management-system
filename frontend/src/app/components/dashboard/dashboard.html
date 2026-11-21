@@ -1,0 +1,191 @@
+<div class="dashboard-container">
+  <div class="dashboard-header">
+    <h2>Operations Dashboard</h2>
+    <p class="text-muted">Real-time status overview of raw materials, batch production and vendor credit.</p>
+  </div>
+
+  <!-- Loading State -->
+  <div class="flex-center loading-state" *ngIf="isLoading()">
+    <span class="spinner"></span>
+    <span style="margin-left: 10px;">Loading dashboard overview...</span>
+  </div>
+
+  <ng-container *ngIf="!isLoading()">
+    <!-- Metrics Row -->
+    <div class="metrics-grid">
+      <div class="metric-card glass-card">
+        <div class="metric-icon raw-icon">
+          <span class="material-symbols-outlined">inventory_2</span>
+        </div>
+        <div class="metric-info">
+          <h3>{{ totalRawProducts() }}</h3>
+          <p>Raw Products</p>
+        </div>
+      </div>
+
+      <div class="metric-card glass-card">
+        <div class="metric-icon finished-icon">
+          <span class="material-symbols-outlined">package_2</span>
+        </div>
+        <div class="metric-info">
+          <h3>{{ totalFinishedProducts() }}</h3>
+          <p>Finished Products</p>
+        </div>
+      </div>
+
+      <div class="metric-card glass-card" [class.alert-border]="lowStockCount() > 0">
+        <div class="metric-icon low-stock-icon" [class.alert-bg]="lowStockCount() > 0">
+          <span class="material-symbols-outlined">warning</span>
+        </div>
+        <div class="metric-info">
+          <h3 [class.text-danger]="lowStockCount() > 0">{{ lowStockCount() }}</h3>
+          <p>Low Stock Alerts</p>
+        </div>
+      </div>
+
+      <div class="metric-card glass-card">
+        <div class="metric-icon batch-icon">
+          <span class="material-symbols-outlined">precision_manufacturing</span>
+        </div>
+        <div class="metric-info">
+          <h3>{{ totalBatches() }}</h3>
+          <p>Batches Produced</p>
+        </div>
+      </div>
+
+      <div class="metric-card glass-card">
+        <div class="metric-icon payable-icon">
+          <span class="material-symbols-outlined">account_balance_wallet</span>
+        </div>
+        <div class="metric-info">
+          <h3 class="money-value">{{ money(totalPayable()) }}</h3>
+          <p>Payable To Vendors</p>
+        </div>
+      </div>
+
+      <div class="metric-card glass-card" [class.alert-border]="totalOverdue() > 0">
+        <div class="metric-icon overdue-icon" [class.alert-bg]="totalOverdue() > 0">
+          <span class="material-symbols-outlined">schedule</span>
+        </div>
+        <div class="metric-info">
+          <h3 class="money-value" [class.text-danger]="totalOverdue() > 0">{{ money(totalOverdue()) }}</h3>
+          <p>Overdue Vendor Dues</p>
+        </div>
+      </div>
+
+      <div class="metric-card glass-card">
+        <div class="metric-icon open-po-icon">
+          <span class="material-symbols-outlined">local_shipping</span>
+        </div>
+        <div class="metric-info">
+          <h3>{{ openOrders() }}</h3>
+          <p>Open Purchase Orders</p>
+        </div>
+      </div>
+
+      <div class="metric-card glass-card" [class.alert-border]="vendorsOverLimit() > 0">
+        <div class="metric-icon credit-icon" [class.alert-bg]="vendorsOverLimit() > 0">
+          <span class="material-symbols-outlined">credit_score</span>
+        </div>
+        <div class="metric-info">
+          <h3 [class.text-danger]="vendorsOverLimit() > 0">{{ vendorsOverLimit() }}</h3>
+          <p>Vendors Over Credit Limit</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Content Sections -->
+    <div class="sections-grid">
+      <!-- Low Stock Panel -->
+      <div class="section-card glass-card">
+        <div class="section-title">
+          <span class="material-symbols-outlined icon-alert">report</span>
+          <h3>Critical Stock Warnings</h3>
+        </div>
+        <div class="section-content">
+          <div class="empty-state" *ngIf="lowStockProducts().length === 0">
+            <span class="material-symbols-outlined check-icon">check_circle</span>
+            <p>All stock levels are optimal.</p>
+          </div>
+          
+          <div class="alert-list" *ngIf="lowStockProducts().length > 0">
+            <div class="alert-item" *ngFor="let prod of lowStockProducts()">
+              <div class="alert-item-left">
+                <span class="product-name">{{ prod.name }}</span>
+                <span class="badge badge-danger">Low Stock</span>
+              </div>
+              <div class="alert-item-right">
+                <span class="stock-info">Stock: <strong>{{ prod.currentStock }}</strong> {{ prod.unitType }}</span>
+                <span class="min-level text-muted">(Min: {{ prod.minimumStockLevel }})</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recent Batches Panel -->
+      <div class="section-card glass-card">
+        <div class="section-title">
+          <span class="material-symbols-outlined icon-history">history</span>
+          <h3>Recent Batches</h3>
+        </div>
+        <div class="section-content">
+          <div class="empty-state" *ngIf="recentBatches().length === 0">
+            <span class="material-symbols-outlined">precision_manufacturing</span>
+            <p>No batches produced yet.</p>
+          </div>
+          
+          <div class="batch-list" *ngIf="recentBatches().length > 0">
+            <div class="batch-item" *ngFor="let b of recentBatches()">
+              <div class="batch-item-left">
+                <span class="batch-no">{{ b.batchNumber }}</span>
+                <span class="finished-prod">{{ b.finishedProduct?.name }}</span>
+              </div>
+              <div class="batch-item-right">
+                <span class="batch-qty">+{{ b.quantity }} units</span>
+                <span class="batch-date text-muted">{{ b.creationDate }}</span>
+              </div>
+            </div>
+            
+            <a routerLink="/batches" class="view-all-link">
+              <span>View Production Log</span>
+              <span class="material-symbols-outlined">arrow_right_alt</span>
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recent Purchase Orders Panel -->
+      <div class="section-card glass-card">
+        <div class="section-title">
+          <span class="material-symbols-outlined icon-po">request_quote</span>
+          <h3>Recent Purchase Orders</h3>
+        </div>
+        <div class="section-content">
+          <div class="empty-state" *ngIf="recentOrders().length === 0">
+            <span class="material-symbols-outlined">request_quote</span>
+            <p>No purchase orders raised yet.</p>
+          </div>
+
+          <div class="batch-list" *ngIf="recentOrders().length > 0">
+            <div class="batch-item" *ngFor="let po of recentOrders()">
+              <div class="batch-item-left">
+                <span class="batch-no">{{ po.poNumber }}</span>
+                <span class="finished-prod">{{ po.vendor?.name }}</span>
+              </div>
+              <div class="batch-item-right">
+                <span class="batch-qty" [class.text-danger]="po.outstanding > 0">{{ money(po.outstanding) }} due</span>
+                <span class="batch-date text-muted">{{ po.orderDate }} · {{ po.status }}</span>
+              </div>
+            </div>
+
+            <a routerLink="/purchase-orders" class="view-all-link">
+              <span>Open Purchase Order Register</span>
+              <span class="material-symbols-outlined">arrow_right_alt</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </ng-container>
+</div>

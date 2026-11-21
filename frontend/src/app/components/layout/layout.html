@@ -1,0 +1,88 @@
+<div class="layout-container">
+  <!-- Sidebar -->
+  <aside class="sidebar glass-card">
+    <div class="brand">
+      <span class="material-symbols-outlined brand-icon">spa</span>
+      <span class="brand-name">Mehndi BMS</span>
+    </div>
+
+    <nav class="nav-menu">
+      <a routerLink="/dashboard" routerLinkActive="active" class="nav-item">
+        <span class="material-symbols-outlined">dashboard</span>
+        <span>Dashboard</span>
+      </a>
+
+      <a routerLink="/raw-products" routerLinkActive="active" class="nav-item">
+        <span class="material-symbols-outlined">inventory_2</span>
+        <span>Raw Products</span>
+      </a>
+
+      <a routerLink="/finished-products" routerLinkActive="active" class="nav-item">
+        <span class="material-symbols-outlined">package_2</span>
+        <span>Finished Products</span>
+      </a>
+
+      <a routerLink="/batches" routerLinkActive="active" class="nav-item">
+        <span class="material-symbols-outlined">precision_manufacturing</span>
+        <span>Batch Production</span>
+      </a>
+
+      <p class="nav-section">Purchasing &amp; Vendor Accounts</p>
+
+      <a routerLink="/vendors" routerLinkActive="active" class="nav-item">
+        <span class="material-symbols-outlined">storefront</span>
+        <span>Vendors</span>
+      </a>
+
+      <a routerLink="/purchase-orders" routerLinkActive="active" class="nav-item">
+        <span class="material-symbols-outlined">request_quote</span>
+        <span>Purchase Orders</span>
+      </a>
+
+      <a routerLink="/vendor-ledger" routerLinkActive="active" class="nav-item">
+        <span class="material-symbols-outlined">receipt_long</span>
+        <span>Vendor Ledger</span>
+      </a>
+
+      <a routerLink="/reports" routerLinkActive="active" class="nav-item">
+        <span class="material-symbols-outlined">analytics</span>
+        <span>Reports &amp; Logs</span>
+      </a>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="user-card" *ngIf="apiService.currentUser() as user">
+        <div class="user-avatar">
+          <span class="material-symbols-outlined">person</span>
+        </div>
+        <div class="user-info">
+          <p class="user-name">{{ user.username }}</p>
+          <p class="user-role">{{ user.role | titlecase }}</p>
+        </div>
+      </div>
+      <button class="btn btn-secondary logout-btn" (click)="logout()">
+        <span class="material-symbols-outlined">logout</span>
+        <span>Logout</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- Main View -->
+  <div class="main-content">
+    <header class="top-header glass-card">
+      <div class="header-left">
+        <h1 class="page-title">Inventory Management System</h1>
+      </div>
+      <div class="header-right">
+        <div class="status-indicator">
+          <span class="dot online"></span>
+          <span class="status-text">System Live</span>
+        </div>
+      </div>
+    </header>
+
+    <main class="page-viewport">
+      <router-outlet></router-outlet>
+    </main>
+  </div>
+</div>

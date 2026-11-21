@@ -1,0 +1,173 @@
+<div class="page-container">
+  <div class="page-header">
+    <div class="header-details">
+      <h2>Vendor Ledger Statement</h2>
+      <p class="text-muted">Debit and credit movement of every vendor payable account, with running balance.</p>
+    </div>
+
+    <div class="header-actions">
+      <button class="btn btn-secondary btn-sm" (click)="printStatement()" *ngIf="statement()">
+        <span class="material-symbols-outlined">print</span><span>Print</span>
+      </button>
+      <button class="btn btn-primary btn-sm" (click)="loadStatement()">
+        <span class="material-symbols-outlined">refresh</span><span>Refresh</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="filter-bar glass-card no-print">
+    <div class="filter-field">
+      <label>Vendor</label>
+      <select [(ngModel)]="vendorId" (ngModelChange)="onVendorChange()">
+        <option *ngFor="let vendor of vendors()" [ngValue]="vendor.id">
+          {{ vendor.name }}{{ vendor.code ? ' (' + vendor.code + ')' : '' }}
+        </option>
+      </select>
+    </div>
+    <div class="filter-field">
+      <label>From</label>
+      <input type="date" [(ngModel)]="range.startDate" />
+    </div>
+    <div class="filter-field">
+      <label>To</label>
+      <input type="date" [(ngModel)]="range.endDate" />
+    </div>
+    <div class="quick-ranges">
+      <button class="chip" (click)="setQuickRange(30)">Last 30 days</button>
+      <button class="chip" (click)="setQuickRange(90)">Last 90 days</button>
+      <button class="chip" (click)="clearRange()">All</button>
+    </div>
+  </div>
+
+  <div class="flex-center loading-state" *ngIf="isLoading()">
+    <span class="spinner"></span>
+    <span style="margin-left: 10px;">Loading statement...</span>
+  </div>
+
+  <ng-container *ngIf="!isLoading() && statement() as data">
+    <div class="statement-head glass-card">
+      <div>
+        <p class="text-muted account-label">Vendor Account Statement</p>
+        <h3>{{ data.vendor.name }}</h3>
+        <p class="text-muted sub">
+          <span *ngIf="data.vendor.code">{{ data.vendor.code }} · </span>
+          <span *ngIf="data.vendor.phone">{{ data.vendor.phone }} · </span>
+          <span *ngIf="data.vendor.address">{{ data.vendor.address }} · </span>
+          Credit limit {{ data.vendor.creditLimit > 0 ? money(data.vendor.creditLimit) : 'No limit' }}
+          · {{ data.vendor.paymentTermsDays }} days terms
+        </p>
+      </div>
+      <div class="period">
+        <span class="text-muted">Period</span>
+        <strong>{{ range.startDate || 'Opening' }} to {{ range.endDate || todayStr }}</strong>
+      </div>
+    </div>
+
+    <div class="summary-grid">
+      <div class="glass-card summary-card">
+        <span class="text-muted card-label">Opening Balance (Credit)</span>
+        <h3>{{ money(data.openingBalance) }}</h3>
+      </div>
+      <div class="glass-card summary-card">
+        <span class="text-muted card-label">Total Credit — payable increased</span>
+        <h3 class="text-danger">{{ money(data.totalCredit) }}</h3>
+      </div>
+      <div class="glass-card summary-card">
+        <span class="text-muted card-label">Total Debit — payments &amp; returns</span>
+        <h3 class="text-success">{{ money(data.totalDebit) }}</h3>
+      </div>
+      <div class="glass-card summary-card closing">
+        <span class="text-muted card-label">Closing Balance Payable</span>
+        <h3 [class.text-danger]="data.closingBalance > 0">{{ money(data.closingBalance) }}</h3>
+      </div>
+    </div>
+
+    <div class="table-container glass-card">
+      <table class="data-table ledger-table">
+        <thead>
+          <tr>
+            <th class="text-center">Date</th>
+            <th>Voucher</th>
+            <th>Type</th>
+            <th>Against Order</th>
+            <th>Narration</th>
+            <th class="text-right">Debit</th>
+            <th class="text-right">Credit</th>
+            <th class="text-right">Balance</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="opening-row">
+            <td class="text-center">{{ range.startDate || '—' }}</td>
+            <td colspan="4"><em class="text-muted">Balance brought down</em></td>
+            <td class="text-right"></td>
+            <td class="text-right"></td>
+            <td class="text-right font-bold">{{ money(data.openingBalance) }}</td>
+          </tr>
+          <tr *ngIf="entryRows.length === 0">
+            <td colspan="8" class="text-center text-muted">No ledger movement in this period.</td>
+          </tr>
+          <tr *ngFor="let entry of entryRows">
+            <td class="text-center sub-text">{{ entry.entryDate | date: 'dd MMM yyyy' }}</td>
+            <td>
+              <div class="font-bold">{{ entry.voucherNumber }}</div>
+              <div class="sub-text text-muted" *ngIf="entry.creator">by {{ entry.creator.username }}</div>
+            </td>
+            <td class="sub-text">{{ entry.entryType }}</td>
+            <td class="sub-text">
+              <span *ngIf="entry.purchaseOrder">{{ entry.purchaseOrder.poNumber }}</span>
+              <span *ngIf="!entry.purchaseOrder" class="text-muted">—</span>
+            </td>
+            <td class="sub-text text-muted">{{ entry.narration || '' }}</td>
+            <td class="text-right text-success">{{ entry.direction === 'Debit' ? money(entry.amount) : '' }}</td>
+            <td class="text-right text-danger">{{ entry.direction === 'Credit' ? money(entry.amount) : '' }}</td>
+            <td class="text-right font-bold">{{ money(entry.runningBalance) }}</td>
+          </tr>
+          <tr class="closing-row" *ngIf="entryRows.length > 0">
+            <td colspan="5"><strong>Closing Balance c/f</strong></td>
+            <td class="text-right"><strong>{{ money(data.totalDebit) }}</strong></td>
+            <td class="text-right"><strong>{{ money(data.totalCredit) }}</strong></td>
+            <td class="text-right"><strong [class.text-danger]="data.closingBalance > 0">{{ money(data.closingBalance) }}</strong></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="table-container glass-card" *ngIf="payments().length > 0">
+      <div class="panel-head">
+        <h3>Payment Vouchers</h3>
+        <p class="text-muted">Every settlement recorded against this vendor, including order-number wise payments.</p>
+      </div>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Voucher</th>
+            <th class="text-center">Date</th>
+            <th>Type</th>
+            <th>Method</th>
+            <th>Reference</th>
+            <th>Against Order</th>
+            <th class="text-right">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let payment of payments()">
+            <td class="font-bold">{{ payment.voucherNumber }}</td>
+            <td class="text-center sub-text">{{ payment.paymentDate | date: 'dd MMM yyyy' }}</td>
+            <td class="sub-text">{{ payment.paymentType }}</td>
+            <td class="sub-text">{{ payment.method }}</td>
+            <td class="sub-text text-muted">{{ payment.referenceNumber || '—' }}</td>
+            <td class="sub-text">{{ payment.purchaseOrder?.poNumber || 'General account' }}</td>
+            <td class="text-right font-bold text-success">{{ money(payment.amount) }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </ng-container>
+
+  <div class="glass-card empty-state" *ngIf="!isLoading() && !statement()">
+    <span class="material-symbols-outlined">person_search</span>
+    <h3>No vendor selected</h3>
+    <p class="text-muted">Add a vendor from the Vendor Directory to start tracking its credit account.</p>
+  </div>
+</div>

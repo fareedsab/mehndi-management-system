@@ -1,0 +1,56 @@
+<div class="login-page">
+  <div class="login-glow"></div>
+  <div class="login-card glass-card">
+    <div class="login-header">
+      <span class="material-symbols-outlined login-logo">spa</span>
+      <h2>Mehndi Business</h2>
+      <p>Management System</p>
+    </div>
+
+    <form (ngSubmit)="onSubmit()" class="login-form">
+      <div class="form-group">
+        <label for="username">Username</label>
+        <div class="input-wrapper">
+          <span class="material-symbols-outlined input-icon">person</span>
+          <input 
+            type="text" 
+            id="username" 
+            name="username" 
+            [(ngModel)]="username" 
+            placeholder="Enter username" 
+            required
+            [disabled]="isLoading()"
+          />
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="password">Password</label>
+        <div class="input-wrapper">
+          <span class="material-symbols-outlined input-icon">lock</span>
+          <input 
+            type="password" 
+            id="password" 
+            name="password" 
+            [(ngModel)]="password" 
+            placeholder="Enter password" 
+            required
+            [disabled]="isLoading()"
+          />
+        </div>
+      </div>
+
+      <!-- Error Alert -->
+      <div class="alert alert-danger" *ngIf="errorMessage() as error">
+        <span class="material-symbols-outlined">error</span>
+        <span>{{ error }}</span>
+      </div>
+
+      <button type="submit" class="btn btn-primary login-btn" [disabled]="isLoading()">
+        <span class="material-symbols-outlined" *ngIf="!isLoading()">login</span>
+        <span class="spinner" *ngIf="isLoading()"></span>
+        <span>{{ isLoading() ? 'Logging in...' : 'Sign In' }}</span>
+      </button>
+    </form>
+  </div>
+</div>

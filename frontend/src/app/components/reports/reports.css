@@ -1,0 +1,236 @@
+.page-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+.header-details h2 {
+  font-size: 24px;
+}
+
+.tab-controls {
+  display: flex;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.tab-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 13px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 12.5px;
+  cursor: pointer;
+  border-radius: calc(var(--radius-sm) - 2px);
+  transition: all var(--transition-fast);
+}
+
+.tab-btn:hover {
+  color: #ffffff;
+}
+
+.tab-btn.active {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--color-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.loading-state {
+  height: 250px;
+}
+
+/* Filters Panel */
+.filter-panel {
+  padding: 24px;
+}
+
+.filter-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 20px;
+}
+
+.filter-actions {
+  display: flex;
+  gap: 12px;
+}
+
+/* Ledger Summary Banner */
+.ledger-summary-banner {
+  margin-top: 20px;
+  padding: 20px;
+  background: rgba(16, 185, 129, 0.05);
+  border-color: rgba(16, 185, 129, 0.2);
+}
+
+.ledger-summary-banner h3 {
+  font-size: 18px;
+  margin-top: 4px;
+}
+
+.unit-badge {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.summary-limits {
+  margin-top: 4px;
+  font-size: 13px;
+}
+
+/* Data Table custom styles */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.data-table th, .data-table td {
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.data-table th {
+  background: rgba(15, 23, 42, 0.4);
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.font-bold {
+  font-weight: 600;
+}
+
+.text-right {
+  text-align: right;
+}
+
+.text-center {
+  text-align: center;
+}
+
+.text-accent {
+  color: var(--color-accent);
+}
+
+.text-success {
+  color: var(--color-success);
+}
+
+.text-danger {
+  color: var(--color-danger);
+}
+
+.sub {
+  font-size: 11.5px;
+}
+
+/* Purchase / vendor report panels */
+.table-container {
+  overflow-x: auto;
+  padding: 0;
+}
+
+.summary-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.mini-card {
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.card-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.mini-card h4 {
+  font-family: var(--font-display);
+  font-size: 20px;
+}
+
+.mini-card p {
+  font-size: 11.5px;
+}
+
+.row-alert {
+  background: rgba(239, 68, 68, 0.05);
+}
+
+.aging-bar {
+  display: flex;
+  height: 8px;
+  width: 190px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.07);
+  margin-bottom: 6px;
+}
+
+.aging-seg { display: block; height: 100%; }
+.aging-seg.not-due { background: var(--color-success); }
+.aging-seg.d1 { background: var(--color-accent); }
+.aging-seg.d2 { background: #fb923c; }
+.aging-seg.d3 { background: var(--color-danger); }
+.aging-seg.d4 { background: #7f1d1d; }
+
+.view-switch {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.chip {
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 999px;
+  border: 1px solid var(--border-color);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  width: auto;
+}
+
+.chip:hover { color: #ffffff; }
+
+.chip.active {
+  color: var(--color-primary);
+  border-color: rgba(16, 185, 129, 0.4);
+  background: rgba(16, 185, 129, 0.1);
+}

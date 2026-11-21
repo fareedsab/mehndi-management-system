@@ -1,0 +1,182 @@
+<div class="page-container">
+  <!-- Page Header -->
+  <div class="page-header">
+    <div class="header-details">
+      <h2>Finished Products Catalog</h2>
+      <p class="text-muted">Manage Mehndi products that are generated through Batch creation.</p>
+    </div>
+    
+    <!-- Tab Controls -->
+    <div class="tab-controls">
+      <button 
+        class="tab-btn" 
+        [class.active]="activeTab() === 'list'" 
+        (click)="activeTab.set('list')">
+        <span class="material-symbols-outlined">list</span>
+        <span>Catalog List</span>
+      </button>
+      <button 
+        class="tab-btn" 
+        [class.active]="activeTab() === 'add'" 
+        (click)="activeTab.set('add')">
+        <span class="material-symbols-outlined">add_circle</span>
+        <span>Add Finished Product</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Loading View -->
+  <div class="flex-center loading-state" *ngIf="isLoading()">
+    <span class="spinner"></span>
+    <span style="margin-left: 10px;">Loading finished products...</span>
+  </div>
+
+  <!-- Main View Content -->
+  <div class="tab-content" *ngIf="!isLoading()">
+    <!-- TAB: LIST -->
+    <div class="tab-pane" *ngIf="activeTab() === 'list'">
+      <!-- Search & Filters -->
+      <div class="filter-bar glass-card">
+        <div class="search-box">
+          <span class="material-symbols-outlined search-icon">search</span>
+          <input 
+            type="text" 
+            [(ngModel)]="searchTerm" 
+            placeholder="Search catalog by name..." 
+          />
+        </div>
+      </div>
+
+      <!-- Catalog List Grid -->
+      <div class="catalog-grid">
+        <div class="empty-state" *ngIf="filteredProducts.length === 0" style="grid-column: 1 / -1; height: 200px;">
+          <span class="material-symbols-outlined">package</span>
+          <p>No finished products defined yet.</p>
+        </div>
+        
+        <div class="catalog-card glass-card" *ngFor="let prod of filteredProducts">
+          <div class="card-header">
+            <span class="product-badge">ID: #{{ prod.id }}</span>
+            <span class="badge" [class.badge-success]="prod.status === 'Active'" [class.badge-danger]="prod.status === 'Inactive'">
+              {{ prod.status }}
+            </span>
+          </div>
+          
+          <div class="card-body">
+            <span class="material-symbols-outlined body-icon">inventory</span>
+            <h3 class="prod-title">{{ prod.name }}</h3>
+            <p class="prod-desc text-muted">{{ prod.description || 'No description provided.' }}</p>
+          </div>
+          
+          <div class="card-footer">
+            <button class="btn btn-secondary edit-card-btn" (click)="openModal(prod)">
+              <span class="material-symbols-outlined">edit</span>
+              <span>Edit Details</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB: ADD -->
+    <div class="tab-pane" *ngIf="activeTab() === 'add'">
+      <div class="form-container glass-card">
+        <h3>Create New Finished Product Catalog Card</h3>
+        <p class="text-muted" style="margin-bottom: 20px;">Add a new brand item to produce in production batches.</p>
+
+        <form (ngSubmit)="onSubmitAdd()" class="finished-form">
+          <div class="form-group">
+            <label for="finName">Finished Product Name *</label>
+            <input 
+              type="text" 
+              id="finName" 
+              name="name" 
+              [(ngModel)]="newProduct.name" 
+              placeholder="e.g. Nosheen Mehndi, Supreme Mehndi" 
+              required 
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="finDesc">Description</label>
+            <textarea 
+              id="finDesc" 
+              name="description" 
+              [(ngModel)]="newProduct.description" 
+              placeholder="Enter product details or branding labels..."
+              rows="4"
+            ></textarea>
+          </div>
+
+          <div class="form-group">
+            <label for="finStatus">Initial Status</label>
+            <select id="finStatus" name="status" [(ngModel)]="newProduct.status">
+              <option value="Active">Active</option>
+              <option value="Inactive">Inactive</option>
+            </select>
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary">
+              <span class="material-symbols-outlined">save</span>
+              <span>Save Product</span>
+            </button>
+            <button type="button" class="btn btn-secondary" (click)="activeTab.set('list')">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- EDIT MODAL OVERLAY -->
+  <div class="modal-backdrop" *ngIf="activeModal() === 'edit'">
+    <div class="modal-container glass-card animate-modal">
+      <div class="modal-header">
+        <h3>
+          <span class="material-symbols-outlined header-icon">edit</span>
+          <span>Edit Finished Product</span>
+        </h3>
+        <button class="btn-close" (click)="closeModal()">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+
+      <div class="modal-body" *ngIf="selectedProduct() as prod">
+        <!-- Alerts -->
+        <div class="alert alert-danger" *ngIf="modalError() as error">
+          <span class="material-symbols-outlined">error</span>
+          <span>{{ error }}</span>
+        </div>
+        <div class="alert alert-success" *ngIf="modalSuccess() as success">
+          <span class="material-symbols-outlined">check_circle</span>
+          <span>{{ success }}</span>
+        </div>
+
+        <form (ngSubmit)="onSubmitEdit()" class="modal-form">
+          <div class="form-group">
+            <label for="editFinName">Product Name *</label>
+            <input type="text" id="editFinName" name="editFinName" [(ngModel)]="editData.name" required />
+          </div>
+          
+          <div class="form-group">
+            <label for="editFinDesc">Description</label>
+            <textarea id="editFinDesc" name="editFinDesc" [(ngModel)]="editData.description" rows="3"></textarea>
+          </div>
+
+          <div class="form-group">
+            <label for="editFinStatus">Status</label>
+            <select id="editFinStatus" name="editFinStatus" [(ngModel)]="editData.status">
+              <option value="Active">Active</option>
+              <option value="Inactive">Inactive</option>
+            </select>
+          </div>
+
+          <div class="modal-footer">
+            <button type="submit" class="btn btn-primary">Save Changes</button>
+            <button type="button" class="btn btn-secondary" (click)="closeModal()">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
