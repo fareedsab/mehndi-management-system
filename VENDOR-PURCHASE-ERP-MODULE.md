@@ -493,3 +493,46 @@ Browser (deployed URL pe, real login submit se):
 - Delete sirf un accounts ka hota hai jinka koi business record nahi; records wale ka password reset karke deactivate karein. Deleted user ka `createdBy` reference DB mein reh jata hai (SQLite FK `ON DELETE` cascade nahi rakhti) — is se historical reports nahi torti.
 - UI ki button-hiding stale grant ke sath 15 second tak dikhai de sakti hai; server phir bhi 403 dega.
 - Test data chhoda hua: **`uacprobe2` / `probe12345`** (standard account, rights: raw-products view, batches view, vendors view, POs view+create) aur uska ek Cancelled PO `PO-20261121-0005`. Yeh demo ke liye rakhya hai — delete karna ho to pehle uska PO clear karna hoga (Cancelled PO API se delete nahi hota, sirf Draft delete hota hai).
+
+---
+
+## 18. Permanent hosting — Firebase Hosting (UI) + Render (API) + Neon (Postgres)
+
+**Kyun badla:** section 16 ka quick tunnel har restart pe naya hostname deta hai aur Cloudflare us hostname ko server-side expire kar deta hai — process zinda ho tab bhi DNS entry khatam (`ERR_NAME_NOT_RESOLVED`). Phone/APK aur Cloudflare DNS ke liye permanent URL chahiye, isliye app ab aapke PC se host nahi hogi.
+
+**Realtime DB/Firestore kyun nahi:** hamara data relational hai (PO → GRN → ledger running balance, credit-limit guard, transaction rollback, audit) aur UAC ki enforcement 37 Express routes mein baithi hai. Document DB mein server code nahi chalta, sirf security rules chalte hain — wo atomic "ye order vendor ki limit cross kar raha hai" check nahi kar sakte. Isliye Express as-is hi host ho raha hai; Firebase ka sirf static hosting use hua (wo Spark plan pe free hai, card nahi lagta).
+
+### Is session mein banaye gaye files
+| File | Kaam |
+|---|---|
+| `firebase.json` | Hosting config: `public: frontend/dist/hosted/browser`, SPA rewrite `** → /index.html`, hashed js/css ko immutable cache, `index.html` ko no-cache |
+| `.firebaserc` | Project id `mehndi-erp` — apna project id yahan set karein ya `firebase use --add` |
+| `frontend/src/environments/environment.hosted.ts` | `apiUrl: 'https://mehndi-erp-api.onrender.com/api'` (absolute, kyunke Firebase Hosting `/api` ko Render pe proxy nahi kar sakta) |
+| `frontend/angular.json` → `hosted` configuration | Upar wali env file + `outputPath: dist/hosted`, taake tunnel/local build (`production`, relative `/api`) untouched rahe |
+| `frontend/package.json` → `build:hosted` | `ng build --configuration hosted` |
+| `backend/server.js` | Ab frontend build na mile to API-only origin ban jata hai (static middleware + SPA fallback skip, `/` JSON status deta hai) — Render pe `../frontend/dist` maujood nahi hoga |
+| `backend/scripts/migrate-sqlite-to-postgres.js` | SQLite file se Postgres copy, FK order mein, ids preserve, booleans/JSON type-cast, insert ke baad sequences reset |
+
+### Commands
+```bash
+# UI build (Firebase ke liye)
+cd frontend && npm run build:hosted        # -> frontend/dist/hosted/browser
+firebase deploy --only hosting
+
+# Data migration (ek baar, app boot se pehle)
+cd backend
+DATABASE_URL="postgres://...neon...?sslmode=require" DB_SSL=true node scripts/migrate-sqlite-to-postgres.js
+```
+
+### Render service settings
+- Root Directory: `backend` · Build: `npm ci` · Start: `node server.js` · Instance: Free
+- Environment: `DATABASE_URL` (Neon pooled connection), `DB_SSL=true`, `JWT_SECRET` (16+ chars, warna `middleware/auth.js` boot hi nahi karta), `NODE_ENV=production`
+- Service ka naam **bilkul `mehndi-erp-api`** rakhein — `environment.hosted.ts` isi URL pe pinned hai; naam badla to ek line change karke `npm run build:hosted` + redeploy.
+
+### Caveats (is setup ki honest limits)
+- **Render free instance ~15 min idle ke baad sota hai**; agla request 30–60s lagta hai (cold start). Pehli baar phone pe kholne delay mehsoos hoga.
+- Render free plan **custom domain allow nahi karta** — UI ka domain Firebase Hosting pe free lagta hai, API ka `*.onrender.com` hi rahega (APK ke liye theek; agar API bhi apne domain pe chahiye to Cloudflare Worker free proxy lagana hoga).
+- `cors()` abhi sab origins allow karta hai — functionality ke baad hardening mein sirf Firebase domain whitelist karna baqi hai.
+- **Cutover ke baad Postgres source of truth hai**: aapki local `backend/mehndi_inventory.sqlite` purani rahegi. Dono jagah entry karna data divide kar dega — ya to hosted DB use karein ya tunnel wapas.
+- Migration script `ON CONFLICT (id) DO UPDATE` use karta hai, yani **SQLite file authoritative hai** — dobara chalane se Postgres ki same-id rows overwrite ho jayengi.
+- Abhi tak kuch live deploy nahi hua: Render/Neon/Firebase accounts aapke naam pe banenge. Verification sirf build-level hai (hosted bundle mein Render URL confirm, tunnel bundle untouched, `node --check`, migration guard ka clean fail).

@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
+const fs = require('fs');
 const path = require('path');
 const db = require('./models');
 const initializeDatabase = require('./config/initDb');
@@ -25,7 +26,13 @@ app.use(morgan('dev'));
 
 // Serve frontend build files in production
 const frontendBuildPath = path.join(__dirname, '../frontend/dist/frontend/browser');
-app.use(express.static(frontendBuildPath));
+const frontendIndexPath = path.join(frontendBuildPath, 'index.html');
+// An API-only host (Render) deploys backend/ without the Angular build beside it,
+// so the static middleware and SPA fallback may not assume index.html exists.
+const servesFrontend = fs.existsSync(frontendIndexPath);
+if (servesFrontend) {
+  app.use(express.static(frontendBuildPath));
+}
 
 // Wire API routes
 app.use('/api/auth', authRoutes);
@@ -42,7 +49,10 @@ app.get('*', (req, res, next) => {
   if (req.url.startsWith('/api/')) {
     return next();
   }
-  res.sendFile(path.join(frontendBuildPath, 'index.html'));
+  if (!servesFrontend) {
+    return res.json({ status: 'ok', api: '/api', note: 'This origin serves the API only; the Angular app is hosted separately.' });
+  }
+  res.sendFile(frontendIndexPath);
 });
 
 // Sync database and start server
