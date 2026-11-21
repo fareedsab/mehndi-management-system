@@ -5,7 +5,7 @@ const config: CapacitorConfig = {
   appName: 'Mehndi Management',
   webDir: 'dist/frontend/browser',
   server: {
-    url: 'https://exceptional-legitimate-suggestion-characterization.trycloudflare.com',
+    url: 'https://saw-professional-warren-reductions.trycloudflare.com',
     cleartext: true
   }
 };
