@@ -1,12 +1,14 @@
 <div class="layout-container">
+  <div class="sidebar-backdrop" *ngIf="mobileMenuOpen" (click)="closeMobileMenu()"></div>
+
   <!-- Sidebar -->
-  <aside class="sidebar glass-card">
+  <aside class="sidebar glass-card" [class.open]="mobileMenuOpen">
     <div class="brand">
       <span class="material-symbols-outlined brand-icon">spa</span>
       <span class="brand-name">Mehndi BMS</span>
     </div>
 
-    <nav class="nav-menu">
+    <nav class="nav-menu" (click)="closeMobileMenu()">
       <a routerLink="/dashboard" routerLinkActive="active" class="nav-item" *ngIf="access.can('dashboard')">
         <span class="material-symbols-outlined">dashboard</span>
         <span>Dashboard</span>
@@ -83,6 +85,9 @@
   <div class="main-content">
     <header class="top-header glass-card">
       <div class="header-left">
+        <button type="button" class="mobile-menu-btn" (click)="toggleMobileMenu()" aria-label="Toggle Menu">
+          <span class="material-symbols-outlined">menu</span>
+        </button>
         <h1 class="page-title">Inventory Management System</h1>
       </div>
       <div class="header-right">

@@ -14,6 +14,15 @@ import { AccessService } from '../../services/access.service';
 export class LayoutComponent implements OnInit {
   readonly apiService = inject(ApiService);
   readonly access = inject(AccessService);
+  mobileMenuOpen = false;
+
+  toggleMobileMenu(): void {
+    this.mobileMenuOpen = !this.mobileMenuOpen;
+  }
+
+  closeMobileMenu(): void {
+    this.mobileMenuOpen = false;
+  }
 
   ngOnInit(): void {
     // Grants come from the database on every boot so a right revoked since the last
