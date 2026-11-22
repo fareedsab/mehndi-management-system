@@ -31,6 +31,11 @@ if (resolvedDialect === 'sqlite') {
     logging: false
   });
 } else if (resolvedDialect === 'mysql' || resolvedDialect === 'postgres' || resolvedDialect === 'mariadb') {
+  if (resolvedDialect === 'postgres') {
+    // Sequelize loads its dialect driver dynamically, which a bundling host such as
+    // Vercel cannot trace, so pg is referenced here to be included in the function.
+    require('pg');
+  }
   // Managed hosts usually require TLS; without it the connection is rejected.
   const sslEnabled = String(process.env.DB_SSL).toLowerCase() === 'true';
 
