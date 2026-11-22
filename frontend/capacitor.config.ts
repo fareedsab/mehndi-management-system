@@ -5,7 +5,7 @@ const config: CapacitorConfig = {
   appName: 'Mehndi Management',
   webDir: 'dist/frontend/browser',
   server: {
-    url: 'https://saw-professional-warren-reductions.trycloudflare.com',
+    url: 'https://mehndi-erp.web.app',
     cleartext: true
   }
 };

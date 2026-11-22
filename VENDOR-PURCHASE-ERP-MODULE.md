@@ -496,21 +496,28 @@ Browser (deployed URL pe, real login submit se):
 
 ---
 
-## 18. Permanent hosting — Firebase Hosting (UI) + Render (API) + Neon (Postgres)
+## 18. Permanent hosting — Firebase Hosting (UI) + Vercel (API) + Neon (Postgres)
 
 **Kyun badla:** section 16 ka quick tunnel har restart pe naya hostname deta hai aur Cloudflare us hostname ko server-side expire kar deta hai — process zinda ho tab bhi DNS entry khatam (`ERR_NAME_NOT_RESOLVED`). Phone/APK aur Cloudflare DNS ke liye permanent URL chahiye, isliye app ab aapke PC se host nahi hogi.
 
 **Realtime DB/Firestore kyun nahi:** hamara data relational hai (PO → GRN → ledger running balance, credit-limit guard, transaction rollback, audit) aur UAC ki enforcement 37 Express routes mein baithi hai. Document DB mein server code nahi chalta, sirf security rules chalte hain — wo atomic "ye order vendor ki limit cross kar raha hai" check nahi kar sakte. Isliye Express as-is hi host ho raha hai; Firebase ka sirf static hosting use hua (wo Spark plan pe free hai, card nahi lagta).
+
+**Render kyun nahi (2026-11-22):** Render ne $0/free compute select karne ke baad bhi deploy par **"Add Card"** (Stripe) modal khola — naye accounts ko free instance ke liye bhi payment method chahiye. Card-free requirement ke against, isliye API Vercel ke Hobby plan pe hai (sign-up GitHub se, card maanga hi nahi gaya).
 
 ### Is session mein banaye gaye files
 | File | Kaam |
 |---|---|
 | `firebase.json` | Hosting config: `public: frontend/dist/hosted/browser`, SPA rewrite `** → /index.html`, hashed js/css ko immutable cache, `index.html` ko no-cache |
 | `.firebaserc` | Project id `mehndi-erp` — apna project id yahan set karein ya `firebase use --add` |
-| `frontend/src/environments/environment.hosted.ts` | `apiUrl: 'https://mehndi-erp-api.onrender.com/api'` (absolute, kyunke Firebase Hosting `/api` ko Render pe proxy nahi kar sakta) |
+| `frontend/src/environments/environment.hosted.ts` | `apiUrl: 'https://mehndi-erp-api.vercel.app/api'` (absolute, kyunke Firebase Hosting `/api` ko Vercel pe proxy nahi kar sakta) |
 | `frontend/angular.json` → `hosted` configuration | Upar wali env file + `outputPath: dist/hosted`, taake tunnel/local build (`production`, relative `/api`) untouched rahe |
 | `frontend/package.json` → `build:hosted` | `ng build --configuration hosted` |
-| `backend/server.js` | Ab frontend build na mile to API-only origin ban jata hai (static middleware + SPA fallback skip, `/` JSON status deta hai) — Render pe `../frontend/dist` maujood nahi hoga |
+| `backend/app.js` | Poora Express router + static/SPA middleware, `listen()` ke baghair — serverless aur server dono isi app ko use karte hain |
+| `backend/server.js` | Ab sirf `app.js` import karke `listen()` karta hai; frontend build na mile to API-only origin ban jata hai (`/` par JSON status) |
+| `backend/api/index.js` | Vercel handler. Har cold instance par `initializeDatabase()` **ek baar** await karta hai, phir Express app ko request deta hai |
+| `backend/vercel.json` | `framework: null`, build off, `functions: { "api/index.js": { memory: 1024 } }`, aur `rewrites: /(.*) → /api` taake har path Express ke router tak jaye |
+| `backend/package.json` → `engines.node` | `22.x` — Vercel ko Node version batane ka sahi place yahi hai (`functions.runtime` invalid hai) |
+| `backend/config/database.js` | Postgres path par `require('pg')` — dekhain caveats |
 | `backend/scripts/migrate-sqlite-to-postgres.js` | SQLite file se Postgres copy, FK order mein, ids preserve, booleans/JSON type-cast, insert ke baad sequences reset |
 
 ### Commands
@@ -524,15 +531,26 @@ cd backend
 DATABASE_URL="postgres://...neon...?sslmode=require" DB_SSL=true node scripts/migrate-sqlite-to-postgres.js
 ```
 
-### Render service settings
-- Root Directory: `backend` · Build: `npm ci` · Start: `node server.js` · Instance: Free
-- Environment: `DATABASE_URL` (Neon pooled connection), `DB_SSL=true`, `JWT_SECRET` (16+ chars, warna `middleware/auth.js` boot hi nahi karta), `NODE_ENV=production`
-- Service ka naam **bilkul `mehndi-erp-api`** rakhein — `environment.hosted.ts` isi URL pe pinned hai; naam badla to ek line change karke `npm run build:hosted` + redeploy.
+### Vercel project settings
+- Repo `fareedsab/mehndi-management-system` (GitHub App connected), **Root Directory: `backend`**, Application Preset: Express
+- Project name **`mehndi-erp-api`** → production domain `mehndi-erp-api.vercel.app` (`environment.hosted.ts` isi pe pinned hai; badla to ek line change karke `npm run build:hosted` + `firebase deploy --only hosting`)
+- Purana auto-domain `mehndi-management-system.vercel.app` naye domain par 307 redirect karta hai
+- Environment Variables (sirf **Production**): `DATABASE_URL` (Neon **pooled** string), `DB_SSL=true`, `JWT_SECRET` (16+ chars, warna `middleware/auth.js` boot hi nahi karta)
+- Env vars change karne ke baad **Redeploy** lazmi hai (deployment page → ⋯ → Redeploy) — naya code push ke baghair env pick nahi karta
+
+### Live verification (2026-11-22, HTTPS par curl + browser se)
+- `POST /api/auth/login` (admin) → 200 + JWT; galat password → 401; token ke bagair `/api/vendors` → 401
+- Token ke saath 200: `/api/vendors`, `/api/raw-products`, `/api/finished-products`, `/api/batches`, `/api/purchase-orders`, `/api/users`, `/api/reports/purchase-summary`, `/api/reports/vendor-balances`
+- `https://mehndi-erp.web.app` → login → `/dashboard` (tiles Neon se), `/vendors` par 3 vendors, `/users` par UAC screen; console bilkul khaali
+- Deployed bundle `main-5UT7MXXX.js` mein Vercel API URL confirm kiya (grep), SPA deep link `/purchase-orders` → 200
 
 ### Caveats (is setup ki honest limits)
-- **Render free instance ~15 min idle ke baad sota hai**; agla request 30–60s lagta hai (cold start). Pehli baar phone pe kholne delay mehsoos hoga.
-- Render free plan **custom domain allow nahi karta** — UI ka domain Firebase Hosting pe free lagta hai, API ka `*.onrender.com` hi rahega (APK ke liye theek; agar API bhi apne domain pe chahiye to Cloudflare Worker free proxy lagana hoga).
+- **Sequelize ka dialect driver dynamic `require` hai**, isliye Vercel ka dependency tracer `pg` ko bundle mein nahi laata — har request `Error: Please install pg package manually` se marta tha. Fix: `config/database.js` mein Postgres branch par static `require('pg')`. Agla naya dialect driver bisi shakal add karna parega.
+- **Vercel functions stateless hain**: har cold start par `sequelize.sync()` + seeders chalte hain (first request ~1-3s). Local `backend/mehndi_inventory.sqlite` ab hosted app ka hissa nahi — serverless filesystem read-only hai, SQLite wahan likh hi nahi sakta.
+- Vercel free (Hobby) par **bandwidth/invocation limits** hain; exceed karne par service pause hoti hai, charge nahi aata. Serverless functions ~10s max duration (Hobby) — hamare sab queries is ke andar hain, magar bhaari report export add karenge to time-out dikhega.
+- Neon **pooled** connection string hi use karein (serverless se per-request connection banane pe connection limit khatam ho jati hai).
 - `cors()` abhi sab origins allow karta hai — functionality ke baad hardening mein sirf Firebase domain whitelist karna baqi hai.
-- **Cutover ke baad Postgres source of truth hai**: aapki local `backend/mehndi_inventory.sqlite` purani rahegi. Dono jagah entry karna data divide kar dega — ya to hosted DB use karein ya tunnel wapas.
+- **Cutover ke baad Postgres source of truth hai**: aapki local `backend/mehndi_inventory.sqlite` purani rahegi. Dono jagah entry karna data divide kar dega.
 - Migration script `ON CONFLICT (id) DO UPDATE` use karta hai, yani **SQLite file authoritative hai** — dobara chalane se Postgres ki same-id rows overwrite ho jayengi.
-- Abhi tak kuch live deploy nahi hua: Render/Neon/Firebase accounts aapke naam pe banenge. Verification sirf build-level hai (hosted bundle mein Render URL confirm, tunnel bundle untouched, `node --check`, migration guard ka clean fail).
+- Repo **public** hai (Vercel GitHub import ke liye) — `.env` gitignored hai, koi secret commit nahi hua, magar source sab par visible hai. Private karna ho to Vercel ko CLI deploy par shift karna hoga.
+- Abhi tak **data migrate nahi hua**: Neon par aaj ke seeders ka fresh data hai (admin master account, 6 raw products, 3 vendors), purane PO-20261121-000x orders/uacprobe2 nahi. Migration ke liye pehle `backend/.env` ka `DATABASE_URL` bharna hai (abhi khali).
